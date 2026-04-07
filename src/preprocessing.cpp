@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <limits>
+#include <utility>
 #include <stdexcept>
 
 namespace tucvrp {
@@ -12,6 +12,7 @@ namespace {
 
 constexpr double kEps = 1e-9;
 
+// Return the next unused vertex id for introducing auxiliary nodes.
 int next_available_vertex_id(const Instance& instance) {
     int next_id = 0;
     for (int v : instance.vertices()) {
@@ -22,13 +23,14 @@ int next_available_vertex_id(const Instance& instance) {
 
 }
 
+// Measure root-to-terminal distances and check whether they satisfy the bounded-distance regime.
 BoundedDistanceStats Preprocessor::bounded_distance_stats(const Instance& instance, double epsilon) {
     if (epsilon <= 0.0 || epsilon >= 1.0) {
         throw std::invalid_argument("epsilon must be in (0, 1)");
     }
     instance.validate();
 
-    const auto dist = instance.distance_from_root();
+    const auto dist = instance.distance_from_depot();
     double min_distance = std::numeric_limits<double>::infinity();
     double max_distance = 0.0;
 
@@ -50,21 +52,26 @@ BoundedDistanceStats Preprocessor::bounded_distance_stats(const Instance& instan
     };
 }
 
+// Sum the mandatory load contribution of every edge based on subtree demand.
 double Preprocessor::edge_load_lower_bound(const Instance& instance) {
     instance.validate();
     const auto parent = instance.parent_array();
     std::vector<int> order;
     order.reserve(instance.vertex_count());
 
-    std::function<void(int, int)> dfs = [&](int u, int p) {
+    std::vector<std::pair<int, int>> stack;
+    stack.emplace_back(instance.depot(), -1);
+    while (!stack.empty()) {
+        const auto [u, p] = stack.back();
+        stack.pop_back();
         order.push_back(u);
-        for (const auto& edge : instance.neighbors(u)) {
+        for (auto it = instance.neighbors(u).rbegin(); it != instance.neighbors(u).rend(); ++it) {
+            const auto& edge = *it;
             if (edge.to != p) {
-                dfs(edge.to, u);
+                stack.emplace_back(edge.to, u);
             }
         }
-    };
-    dfs(instance.root(), -1);
+    }
 
     std::vector<double> subtree_demand(instance.vertex_count(), 0.0);
     for (const auto& terminal : instance.terminals()) {
@@ -74,7 +81,7 @@ double Preprocessor::edge_load_lower_bound(const Instance& instance) {
     double lower_bound = 0.0;
     for (auto it = order.rbegin(); it != order.rend(); ++it) {
         int u = *it;
-        if (u == instance.root()) {
+        if (u == instance.depot()) {
             continue;
         }
         int p = parent[u];
@@ -94,18 +101,21 @@ double Preprocessor::edge_load_lower_bound(const Instance& instance) {
     return lower_bound;
 }
 
-Instance Preprocessor::binarize_tree(const Instance& instance) {
+// Convert a general rooted tree into a binary one by adding zero-cost auxiliary vertices.
+Instance Preprocessor::make_tree_binary(const Instance& instance) {
     instance.validate();
 
-    Instance out(instance.root());
+    Instance out(instance.depot());
     int next_id = next_available_vertex_id(instance);
-    const int copy_bound = std::max(next_id, instance.vertex_count());
-    std::vector<bool> copied_terminal(copy_bound, false);
+    std::vector<std::pair<int, int>> stack;
+    stack.emplace_back(instance.depot(), -1);
 
-    std::function<void(int, int)> dfs = [&](int u, int parent) {
-        if (instance.is_terminal(u) && !copied_terminal[u]) {
+    while (!stack.empty()) {
+        const auto [u, parent] = stack.back();
+        stack.pop_back();
+
+        if (instance.is_terminal(u)) {
             out.add_terminal(u, instance.demand_of(u));
-            copied_terminal[u] = true;
         }
 
         std::vector<Edge> children;
@@ -122,9 +132,7 @@ Instance Preprocessor::binarize_tree(const Instance& instance) {
         } else {
             int chain_node = u;
             for (std::size_t i = 0; i < children.size() - 2; ++i) {
-                if (i == 0) {
-                    out.add_edge(chain_node, children[i].to, children[i].weight);
-                }
+                out.add_edge(chain_node, children[i].to, children[i].weight);
                 int next_chain = next_id++;
                 out.add_edge(chain_node, next_chain, 0.0);
                 chain_node = next_chain;
@@ -133,12 +141,10 @@ Instance Preprocessor::binarize_tree(const Instance& instance) {
             out.add_edge(chain_node, children.back().to, children.back().weight);
         }
 
-        for (const auto& child : children) {
-            dfs(child.to, u);
+        for (auto it = children.rbegin(); it != children.rend(); ++it) {
+            stack.emplace_back(it->to, u);
         }
-    };
-
-    dfs(instance.root(), -1);
+    }
     out.validate();
     return out;
 }

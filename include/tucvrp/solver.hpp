@@ -19,6 +19,7 @@ struct SolveResult {
 
 class ExactSolver {
   public:
+    // Solve small instances exactly by partitioning terminals into feasible tours.
     static SolveResult solve(const Instance& instance);
 };
 

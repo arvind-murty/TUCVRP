@@ -20,13 +20,13 @@ TEST_CASE("instance parser validates a simple tree") {
 )");
 
     auto instance = Instance::parse(input);
-    REQUIRE(instance.root() == 0);
+    REQUIRE(instance.depot() == 0);
     REQUIRE(instance.vertex_count() == 4);
     REQUIRE(instance.edge_count() == 3);
     REQUIRE(instance.terminal_count() == 2);
     REQUIRE(instance.total_demand() == Catch::Approx(1.0));
-    REQUIRE(instance.steiner_cost_for_terminal_subset({2}) == Catch::Approx(6.0));
-    REQUIRE(instance.steiner_cost_for_terminal_subset({2, 3}) == Catch::Approx(12.0));
+    REQUIRE(instance.tour_cost_for_terminals({2}) == Catch::Approx(6.0));
+    REQUIRE(instance.tour_cost_for_terminals({2, 3}) == Catch::Approx(12.0));
 }
 
 TEST_CASE("exact solver partitions terminals into feasible tours") {

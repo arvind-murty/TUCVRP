@@ -23,9 +23,9 @@ Implemented:
 - simple text parser for instances
 - exact exponential solver for small instances, useful as a correctness oracle
 - paper-relevant utilities:
-  - bounded-distance check from Definition 4
-  - edge-load lower bound
-  - conversion to a strict binary tree by expanding high-degree vertices
+- bounded-distance check from Definition 4
+- edge-load lower bound
+- conversion to a binary tree by expanding high-degree vertices
 
 Scaffolded but not yet paper-complete:
 
@@ -41,7 +41,7 @@ The code is structured so those pieces can be added incrementally without rewrit
 The CLI reads a simple text format:
 
 ```text
-n root
+n depot
 u0 v0 w0
 u1 v1 w1
 ...
@@ -62,6 +62,23 @@ Example:
 2
 2 0.4
 3 0.6
+```
+
+## Example Instances
+
+Small hand-checkable examples are in `data/examples/`:
+
+- `path_small.txt`: a tiny path instance
+- `binary_balanced.txt`: a balanced binary tree
+- `star_heavy_leaf.txt`: a star with one far expensive terminal
+- `multi_tour_mixed.txt`: a small instance that forces multiple tours
+- `high_degree_for_binary.txt`: a high-degree tree useful for binary-tree preprocessing
+- `lower_bound_gap.txt`: a small instance where the edge-load lower bound is strictly below the optimum
+
+Example usage:
+
+```bash
+./bin/tucvrp data/examples/path_small.txt
 ```
 
 ## Next Steps

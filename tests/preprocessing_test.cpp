@@ -41,7 +41,7 @@ TEST_CASE("bounded distance statistics follow the paper definition") {
     REQUIRE_FALSE(stats.bounded);
 }
 
-TEST_CASE("binarize_tree preserves demand and does not increase branching above two") {
+TEST_CASE("make_tree_binary preserves demand and does not increase branching above two") {
     Instance instance(0);
     instance.add_edge(0, 1, 1.0);
     instance.add_edge(0, 2, 1.0);
@@ -51,11 +51,11 @@ TEST_CASE("binarize_tree preserves demand and does not increase branching above 
     instance.add_terminal(3, 0.4);
     instance.validate();
 
-    auto binarized = Preprocessor::binarize_tree(instance);
+    auto binarized = Preprocessor::make_tree_binary(instance);
 
     REQUIRE(binarized.total_demand() == Catch::Approx(instance.total_demand()));
     for (int v : binarized.vertices()) {
         REQUIRE(binarized.neighbors(v).size() <= 3);
     }
-    REQUIRE(binarized.root() == 0);
+    REQUIRE(binarized.depot() == 0);
 }

@@ -2,9 +2,12 @@
 
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <limits>
+#include <ostream>
 #include <queue>
 #include <set>
+#include <sstream>
 #include <sstream>
 #include <stdexcept>
 
@@ -16,10 +19,12 @@ constexpr double kEps = 1e-9;
 
 }
 
-Instance::Instance(int root) : root_(root), max_vertex_id_(root) {
-    ensure_vertex(root);
+// Create an instance whose depot is already known.
+Instance::Instance(int depot) : depot_(depot), max_vertex_id_(depot) {
+    ensure_vertex(depot);
 }
 
+// Expand storage so the given vertex id exists in the adjacency list.
 void Instance::ensure_vertex(int vertex) {
     if (vertex < 0) {
         throw std::invalid_argument("vertex ids must be non-negative");
@@ -32,11 +37,13 @@ void Instance::ensure_vertex(int vertex) {
     }
 }
 
-void Instance::set_root(int root) {
-    ensure_vertex(root);
-    root_ = root;
+// Update the depot vertex.
+void Instance::set_depot(int depot) {
+    ensure_vertex(depot);
+    depot_ = depot;
 }
 
+// Insert one undirected weighted edge into the tree representation.
 void Instance::add_edge(int u, int v, double weight) {
     if (weight < 0.0) {
         throw std::invalid_argument("edge weight must be non-negative");
@@ -47,6 +54,7 @@ void Instance::add_edge(int u, int v, double weight) {
     adjacency_[v].push_back(Edge{u, weight});
 }
 
+// Register one customer terminal and its unit-capacity-normalized demand.
 void Instance::add_terminal(int vertex, double demand) {
     if (demand <= 0.0 || demand > 1.0 + kEps) {
         throw std::invalid_argument("terminal demand must be in (0, 1]");
@@ -59,10 +67,13 @@ void Instance::add_terminal(int vertex, double demand) {
     demand_by_vertex_[vertex] = demand;
 }
 
-int Instance::root() const { return root_; }
+// Return the depot vertex id.
+int Instance::depot() const { return depot_; }
 
+// Return the size of the internal adjacency array.
 int Instance::vertex_count() const { return static_cast<int>(adjacency_.size()); }
 
+// Count undirected edges by halving the adjacency-list total.
 int Instance::edge_count() const {
     int total = 0;
     for (const auto& edges : adjacency_) {
@@ -71,8 +82,10 @@ int Instance::edge_count() const {
     return total / 2;
 }
 
+// Return how many customer terminals are present.
 int Instance::terminal_count() const { return static_cast<int>(terminals_.size()); }
 
+// Sum all terminal demands.
 double Instance::total_demand() const {
     double total = 0.0;
     for (const auto& terminal : terminals_) {
@@ -81,13 +94,16 @@ double Instance::total_demand() const {
     return total;
 }
 
+// Check whether a vertex is marked as a terminal.
 bool Instance::is_terminal(int vertex) const { return demand_by_vertex_.contains(vertex); }
 
+// Look up the demand at a vertex, returning zero for non-terminals.
 double Instance::demand_of(int vertex) const {
     auto it = demand_by_vertex_.find(vertex);
     return it == demand_by_vertex_.end() ? 0.0 : it->second;
 }
 
+// Return the adjacency list for a valid vertex id.
 const std::vector<Edge>& Instance::neighbors(int vertex) const {
     if (vertex < 0 || vertex >= static_cast<int>(adjacency_.size())) {
         throw std::out_of_range("vertex out of range");
@@ -95,22 +111,25 @@ const std::vector<Edge>& Instance::neighbors(int vertex) const {
     return adjacency_[vertex];
 }
 
+// Return the stored terminal list.
 const std::vector<Terminal>& Instance::terminals() const { return terminals_; }
 
+// Return the set of vertices that actually participate in the instance.
 std::vector<int> Instance::vertices() const {
     std::vector<int> out;
     out.reserve(adjacency_.size());
     for (int v = 0; v < static_cast<int>(adjacency_.size()); ++v) {
-        if (!adjacency_[v].empty() || v == root_ || demand_by_vertex_.contains(v)) {
+        if (!adjacency_[v].empty() || v == depot_ || demand_by_vertex_.contains(v)) {
             out.push_back(v);
         }
     }
     return out;
 }
 
+// Verify that the graph is a connected tree rooted at a non-terminal depot.
 void Instance::validate() const {
-    if (root_ < 0) {
-        throw std::invalid_argument("root must be set");
+    if (depot_ < 0) {
+        throw std::invalid_argument("depot must be set");
     }
     const auto verts = vertices();
     if (verts.empty()) {
@@ -122,8 +141,8 @@ void Instance::validate() const {
 
     std::vector<bool> seen(adjacency_.size(), false);
     std::queue<int> queue;
-    queue.push(root_);
-    seen[root_] = true;
+    queue.push(depot_);
+    seen[depot_] = true;
 
     while (!queue.empty()) {
         int u = queue.front();
@@ -143,18 +162,19 @@ void Instance::validate() const {
     }
 
     for (const auto& terminal : terminals_) {
-        if (terminal.vertex == root_) {
-            throw std::invalid_argument("root cannot be a terminal");
+        if (terminal.vertex == depot_) {
+            throw std::invalid_argument("depot cannot be a terminal");
         }
     }
 }
 
+// Root the tree at the depot and record each vertex's parent.
 std::vector<int> Instance::parent_array() const {
     validate();
     std::vector<int> parent(adjacency_.size(), -2);
     std::queue<int> queue;
-    parent[root_] = -1;
-    queue.push(root_);
+    parent[depot_] = -1;
+    queue.push(depot_);
     while (!queue.empty()) {
         int u = queue.front();
         queue.pop();
@@ -168,12 +188,13 @@ std::vector<int> Instance::parent_array() const {
     return parent;
 }
 
-std::vector<double> Instance::distance_from_root() const {
+// Compute weighted depot-to-vertex distances throughout the tree.
+std::vector<double> Instance::distance_from_depot() const {
     validate();
     std::vector<double> dist(adjacency_.size(), std::numeric_limits<double>::infinity());
     std::queue<int> queue;
-    dist[root_] = 0.0;
-    queue.push(root_);
+    dist[depot_] = 0.0;
+    queue.push(depot_);
     while (!queue.empty()) {
         int u = queue.front();
         queue.pop();
@@ -187,7 +208,8 @@ std::vector<double> Instance::distance_from_root() const {
     return dist;
 }
 
-double Instance::steiner_cost_for_terminal_subset(const std::vector<int>& terminal_vertices) const {
+// Compute the minimum round-trip tour cost to visit a given terminal subset from the depot.
+double Instance::tour_cost_for_terminals(const std::vector<int>& terminal_vertices) const {
     validate();
     if (terminal_vertices.empty()) {
         return 0.0;
@@ -200,10 +222,10 @@ double Instance::steiner_cost_for_terminal_subset(const std::vector<int>& termin
             throw std::invalid_argument("subset contains a non-terminal");
         }
         int current = terminal;
-        while (current != root_) {
+        while (current != depot_) {
             int p = parent[current];
             if (p < 0) {
-                throw std::logic_error("failed to recover root path");
+                throw std::logic_error("failed to recover depot path");
             }
             int a = std::min(current, p);
             int b = std::max(current, p);
@@ -223,23 +245,24 @@ double Instance::steiner_cost_for_terminal_subset(const std::vector<int>& termin
             }
         }
         if (!found) {
-            throw std::logic_error("missing edge in steiner computation");
+            throw std::logic_error("missing edge in tour-cost computation");
         }
     }
     return 2.0 * cost;
 }
 
+// Parse the project's simple text instance format from an input stream.
 Instance Instance::parse(std::istream& input) {
     int n = 0;
-    int root = -1;
-    if (!(input >> n >> root)) {
+    int depot = -1;
+    if (!(input >> n >> depot)) {
         throw std::invalid_argument("failed to read header");
     }
     if (n <= 0) {
         throw std::invalid_argument("vertex count must be positive");
     }
 
-    Instance instance(root);
+    Instance instance(depot);
     for (int i = 0; i < n; ++i) {
         instance.ensure_vertex(i);
     }
@@ -272,12 +295,66 @@ Instance Instance::parse(std::istream& input) {
     return instance;
 }
 
+// Open a file and parse an instance from it.
 Instance Instance::parse_file(const std::string& path) {
     std::ifstream stream(path);
     if (!stream) {
         throw std::runtime_error("failed to open instance file: " + path);
     }
     return parse(stream);
+}
+
+std::ostream& operator<<(std::ostream& out, const Instance& instance) {
+    instance.validate();
+
+    const auto parent = instance.parent_array();
+    const auto dist = instance.distance_from_depot();
+    std::vector<std::vector<Edge>> children(instance.vertex_count());
+    for (int u : instance.vertices()) {
+        for (const auto& edge : instance.neighbors(u)) {
+            if (edge.to != parent[u]) {
+                children[u].push_back(edge);
+            }
+        }
+    }
+
+    out << "depot: " << instance.depot() << '\n';
+    out << "vertices: " << instance.vertices().size() << ", edges: " << instance.edge_count() << ", terminals: "
+        << instance.terminal_count() << '\n';
+    out << "tree:\n";
+
+    std::vector<std::pair<int, int>> stack;
+    stack.emplace_back(instance.depot(), 0);
+    while (!stack.empty()) {
+        const auto [u, depth] = stack.back();
+        stack.pop_back();
+
+        out << std::string(depth * 2, ' ') << "- v" << u;
+        if (u == instance.depot()) {
+            out << " [depot]";
+        }
+        if (instance.is_terminal(u)) {
+            out << " [term=" << std::fixed << std::setprecision(3) << instance.demand_of(u) << "]";
+        }
+        out << " [dep dst=" << std::fixed << std::setprecision(3) << dist[u] << "]";
+        if (parent[u] >= 0) {
+            double parent_weight = -1.0;
+            for (const auto& edge : instance.neighbors(u)) {
+                if (edge.to == parent[u]) {
+                    parent_weight = edge.weight;
+                    break;
+                }
+            }
+            out << " [dst=" << std::fixed << std::setprecision(3) << parent_weight << "]";
+        }
+        out << '\n';
+
+        for (auto it = children[u].rbegin(); it != children[u].rend(); ++it) {
+            stack.emplace_back(it->to, depth + 1);
+        }
+    }
+
+    return out;
 }
 
 }  // namespace tucvrp

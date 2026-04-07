@@ -7,6 +7,7 @@
 
 namespace tucvrp {
 
+// Solve a small instance exactly by dynamic programming over terminal subsets.
 SolveResult ExactSolver::solve(const Instance& instance) {
     instance.validate();
     const auto& terminals = instance.terminals();
@@ -30,7 +31,7 @@ SolveResult ExactSolver::solve(const Instance& instance) {
         subset_terminals[mask] = subset_terminals[prev];
         subset_terminals[mask].push_back(terminals[bit].vertex);
         if (subset_demand[mask] <= 1.0 + 1e-9) {
-            subset_cost[mask] = instance.steiner_cost_for_terminal_subset(subset_terminals[mask]);
+            subset_cost[mask] = instance.tour_cost_for_terminals(subset_terminals[mask]);
         } else {
             subset_cost[mask] = std::numeric_limits<double>::infinity();
         }
