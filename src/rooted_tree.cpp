@@ -19,6 +19,7 @@ RootedTreeData RootedTreeBuilder::build(const Instance& instance) {
     rooted_tree.parent = instance.parent_array();
     rooted_tree.distances_from_depot = instance.distances_from_depot();
     rooted_tree.subtree_terminal_counts = instance.subtree_terminal_counts();
+    rooted_tree.demands.assign(instance.vertex_count(), 0.0);
     rooted_tree.children.resize(instance.vertex_count());
     rooted_tree.terminal_flags.assign(instance.vertex_count(), false);
 
@@ -33,6 +34,7 @@ RootedTreeData RootedTreeBuilder::build(const Instance& instance) {
     rooted_tree.terminal_vertices.reserve(instance.terminals().size());
     for (const auto& terminal : instance.terminals()) {
         rooted_tree.terminal_vertices.push_back(terminal.vertex);
+        rooted_tree.demands[terminal.vertex] = terminal.demand;
         rooted_tree.terminal_flags[terminal.vertex] = true;
     }
 

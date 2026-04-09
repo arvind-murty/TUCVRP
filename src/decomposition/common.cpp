@@ -1,13 +1,19 @@
-#include "tucvrp/decomposition.hpp"
+#include "internal.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
-namespace tucvrp {
+namespace tucvrp::decomposition_detail {
 
-namespace {
+double big_terminal_threshold(double epsilon, double gamma) {
+    // Definition 8: alpha = epsilon^(1/epsilon + 1) and Gamma_0 = epsilon * alpha / Gamma.
+    // Any terminal with demand greater than Gamma_0 is considered big inside its component.
+    const double alpha = std::pow(epsilon, 1.0 / epsilon + 1.0);
+    return epsilon * alpha / gamma;
+}
 
 // Collect every vertex in the rooted subtree of `root`.
 std::vector<int> collect_subtree_vertices(const RootedTreeData& rooted_tree, int root) {
@@ -176,155 +182,129 @@ void append_component(TreeDecomposition& decomposition,
     });
 }
 
-}  // namespace
-
-// Build the simplest possible decomposition: one region at every hierarchy level.
-TreeDecomposition DecompositionBuilder::make_trivial(const RootedTreeData& rooted_tree) {
-    TreeDecomposition decomposition;
-    decomposition.depot = rooted_tree.depot;
-
-    decomposition.cells.push_back(Cell{
-        .id = 0,
-        .root = rooted_tree.depot,
-        .vertices = rooted_tree.vertices,
-    });
-
-    decomposition.clusters.push_back(Cluster{
-        .id = 0,
-        .root = rooted_tree.depot,
-        .vertices = rooted_tree.vertices,
-        .cell_ids = {0},
-    });
-
+void append_block(TreeDecomposition& decomposition,
+                  int component_id,
+                  int root,
+                  int exit,
+                  double demand,
+                  std::vector<int> vertices) {
+    const int block_id = static_cast<int>(decomposition.blocks.size());
     decomposition.blocks.push_back(Block{
-        .id = 0,
-        .root = rooted_tree.depot,
-        .vertices = rooted_tree.vertices,
-        .cluster_ids = {0},
+        .id = block_id,
+        .component_id = component_id,
+        .root = root,
+        .exit = exit,
+        .demand = demand,
+        .vertices = std::move(vertices),
+        .cluster_ids = {},
     });
-
-    decomposition.components.push_back(Component{
-        .id = 0,
-        .root = rooted_tree.depot,
-        .exit = -1,
-        .terminal_count = static_cast<int>(rooted_tree.terminal_vertices.size()),
-        .is_leaf = true,
-        .is_big = true,
-        .vertices = rooted_tree.vertices,
-        .block_ids = {0},
-    });
-
-    return decomposition;
+    decomposition.components[component_id].block_ids.push_back(block_id);
 }
 
-// Decompose a bounded-distance tree into components following Algorithm 5 / Lemma 9.
-// In the current project we use the paper's threshold Gamma = 12 / epsilon with k = 1.
-TreeDecomposition DecompositionBuilder::decompose_bounded_instance(const RootedTreeData& rooted_tree,
-                                                                  double epsilon) {
-    if (epsilon <= 0.0 || epsilon >= 1.0) {
-        throw std::invalid_argument("decompose_bounded_instance requires epsilon in (0, 1)");
+std::vector<bool> component_membership(const RootedTreeData& rooted_tree, const Component& component) {
+    std::vector<bool> in_component(rooted_tree.parent.size(), false);
+    for (const int v : component.vertices) {
+        // Components already store their explicit vertex sets, so convert that list into a fast
+        // membership bitmap for the block-decomposition helpers below.
+        in_component[v] = true;
+    }
+    return in_component;
+}
+
+// Build the subtree T_U spanning the vertices in U from Section 4.1:
+// the big terminals in the component, the component root, and possibly the component exit.
+std::vector<bool> spanning_subtree_for_block_decomposition(const RootedTreeData& rooted_tree,
+                                                           const Component& component,
+                                                           const std::vector<bool>& in_component,
+                                                           double gamma0) {
+    std::vector<bool> in_u(rooted_tree.parent.size(), false);
+    // By definition, the component root always belongs to U.
+    in_u[component.root] = true;
+    if (component.exit != -1) {
+        // Internal components also include their exit vertex in U.
+        in_u[component.exit] = true;
     }
 
-    TreeDecomposition decomposition;
-    decomposition.depot = rooted_tree.depot;
-
-    const double gamma = 12.0 / epsilon;
-    const std::vector<int> depth = compute_depths(rooted_tree);
-
-    // Steps 1 and 2: a single postorder pass identifies leaf-component roots and key vertices.
-    std::vector<int> leaf_roots;
-    std::vector<int> key_vertices;
-    analyze_backbone(rooted_tree, gamma, leaf_roots, key_vertices);
-    for (const int v : leaf_roots) {
-        // Each leaf-component root contributes one full big subtree component.
-        append_component(
-            decomposition,
-            v,
-            -1,
-            rooted_tree.subtree_terminal_counts[v],
-            true,
-            true,
-            collect_subtree_vertices(rooted_tree, v));
-    }
-
-    // If no leaf component exists, the whole bounded instance stays as one component.
-    if (leaf_roots.empty()) {
-        append_component(
-            decomposition,
-            rooted_tree.depot,
-            -1,
-            rooted_tree.subtree_terminal_counts[rooted_tree.depot],
-            true,
-            static_cast<double>(rooted_tree.subtree_terminal_counts[rooted_tree.depot]) >= gamma,
-            rooted_tree.vertices);
-        return decomposition;
-    }
-
-    std::vector<bool> is_key(rooted_tree.parent.size(), false);
-    for (const int v : key_vertices) {
-        is_key[v] = true;
-    }
-
-    // Process each non-root key vertex from top to bottom, decomposing the path segment between it
-    // and its lowest key ancestor into maximal big internal components plus at most one final small one.
-    std::vector<int> non_root_keys;
-    for (const int v : key_vertices) {
-        if (v != rooted_tree.depot) {
-            non_root_keys.push_back(v);
+    for (const int v : component.vertices) {
+        // Big terminals are exactly the terminals of this component whose demand exceeds Gamma_0.
+        if (v != component.root && v != component.exit && rooted_tree.is_terminal(v) &&
+            rooted_tree.demands[v] > gamma0) {
+            in_u[v] = true;
         }
     }
-    // Process key vertices top-down so each path segment [v1, v2] is handled before any deeper
-    // segment that hangs below it.
-    std::sort(non_root_keys.begin(), non_root_keys.end(), [&depth](int a, int b) { return depth[a] < depth[b]; });
 
-    for (const int v2 : non_root_keys) {
-        // v2 is the lower endpoint of a backbone segment, and v1 is the closest key ancestor above it.
-        // The open path between them contains no other key vertices.
-        const int v1 = lowest_key_ancestor(v2, is_key, rooted_tree);
-        int x = v2;
-
-        // While the segment between v1 and x still contains at least Gamma terminals, peel off one
-        // maximal big internal component by choosing the lowest root whose component remains big.
-        while (static_cast<double>(component_terminal_count(rooted_tree, v1, x)) >= gamma) {
-            int chosen = v1;
-            // Scan upward from x toward v1. The first candidate that still leaves a big component
-            // is the lowest possible root, hence the maximal component we can peel off next.
-            for (int candidate = x; candidate != v1; candidate = rooted_tree.parent[candidate]) {
-                if (static_cast<double>(component_terminal_count(rooted_tree, candidate, x)) >= gamma) {
-                    chosen = candidate;
-                    break;
-                }
+    std::vector<bool> in_tu(rooted_tree.parent.size(), false);
+    for (const int start : component.vertices) {
+        if (!in_u[start]) {
+            continue;
+        }
+        // The subtree spanning U is the union of all root-to-u paths for u in U.
+        // Since the input is already rooted, each such path is recovered by repeatedly following parent pointers.
+        for (int v = start; v != component.root; v = rooted_tree.parent[v]) {
+            if (v == -1 || !in_component[v]) {
+                throw std::logic_error("component root is not an ancestor of a block key vertex");
             }
+            in_tu[v] = true;
+        }
+        // Ensure the component root itself is marked once at the end of every path.
+        in_tu[component.root] = true;
+    }
 
-            const int terminal_count = component_terminal_count(rooted_tree, chosen, x);
-            append_component(
-                decomposition,
-                chosen,
-                x,
-                terminal_count,
-                false,
-                static_cast<double>(terminal_count) >= gamma,
-                collect_internal_component_vertices(rooted_tree, chosen, x));
-            // The remaining unexplained segment is now the path from v1 down to the new boundary `chosen`.
-            x = chosen;
+    return in_tu;
+}
+
+std::vector<bool> block_key_vertices(const RootedTreeData& rooted_tree,
+                                     const Component& component,
+                                     const std::vector<bool>& in_component,
+                                     const std::vector<bool>& in_tu,
+                                     double gamma0) {
+    std::vector<bool> is_block_key(rooted_tree.parent.size(), false);
+
+    for (const int v : component.vertices) {
+        if (!in_tu[v]) {
+            // Vertices outside T_U do not participate in the block split.
+            continue;
         }
 
-        // Any leftover segment on the path contains fewer than Gamma terminals, so it becomes the
-        // final small internal component between this pair of consecutive key vertices.
-        if (v1 != x) {
-            const int terminal_count = component_terminal_count(rooted_tree, v1, x);
-            append_component(
-                decomposition,
-                v1,
-                x,
-                terminal_count,
-                false,
-                static_cast<double>(terminal_count) >= gamma,
-                collect_internal_component_vertices(rooted_tree, v1, x));
+        // A vertex belongs to U if it is the component root, the component exit,
+        // or a big terminal in this component.
+        bool in_u = (v == component.root || v == component.exit);
+        if (rooted_tree.is_terminal(v) && v != component.root && v != component.exit &&
+            rooted_tree.demands[v] > gamma0) {
+            in_u = true;
+        }
+
+        int tu_child_count = 0;
+        for (const int child : rooted_tree.children[v]) {
+            if (in_component[child] && in_tu[child]) {
+                // Only children that stay inside both the component and T_U count toward
+                // the "two children in T_U" condition from Section 4.1.
+                ++tu_child_count;
+            }
+        }
+
+        // Section 4.1: a key vertex is either in U or has two children in T_U.
+        if (in_u || tu_child_count >= 2) {
+            is_block_key[v] = true;
         }
     }
 
-    return decomposition;
+    return is_block_key;
 }
 
-}  // namespace tucvrp
+double block_demand(const RootedTreeData& rooted_tree,
+                    const std::vector<int>& vertices,
+                    int root,
+                    int exit) {
+    double demand = 0.0;
+    for (const int v : vertices) {
+        // By definition, only terminals strictly inside the block contribute to its demand.
+        // So terminals at the root or the exit are excluded.
+        if (v != root && v != exit && rooted_tree.is_terminal(v)) {
+            demand += rooted_tree.demands[v];
+        }
+    }
+    return demand;
+}
+
+}  // namespace tucvrp::decomposition_detail

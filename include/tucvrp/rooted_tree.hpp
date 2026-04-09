@@ -22,6 +22,8 @@ struct RootedTreeData {
     std::vector<double> distances_from_depot;
     // Number of terminals in the subtree rooted at each vertex id.
     std::vector<int> subtree_terminal_counts;
+    // Demand stored at each vertex id, or 0 for non-terminals.
+    std::vector<double> demands;
     // Terminal membership for each vertex id.
     std::vector<bool> terminal_flags;
 

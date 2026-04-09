@@ -63,6 +63,32 @@ TEST_CASE("instance copy constructor preserves tree and terminal state") {
     REQUIRE(copy.tour_cost_for_terminals({2, 3}) == Catch::Approx(original.tour_cost_for_terminals({2, 3})));
 }
 
+TEST_CASE("instance with_terminals replaces the terminal set on the same tree") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 2
+1 3 3
+2
+2 0.4
+3 0.6
+)");
+
+    const auto original = Instance::parse(input);
+    const Instance subset = Instance::with_terminals(original, {{3, 0.6}});
+
+    REQUIRE(subset.depot() == original.depot());
+    REQUIRE(subset.vertex_count() == original.vertex_count());
+    REQUIRE(subset.edge_count() == original.edge_count());
+    REQUIRE(subset.terminal_count() == 1);
+    REQUIRE(subset.total_demand() == Catch::Approx(0.6));
+    REQUIRE(subset.is_terminal(3));
+    REQUIRE_FALSE(subset.is_terminal(2));
+    REQUIRE(subset.demand_of(3) == Catch::Approx(0.6));
+    REQUIRE(subset.demand_of(2) == Catch::Approx(0.0));
+    REQUIRE(subset.tour_cost_for_terminals({3}) == Catch::Approx(8.0));
+}
+
 TEST_CASE("exact solver partitions terminals into feasible tours") {
     std::istringstream input(R"(
 5 0

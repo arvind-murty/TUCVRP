@@ -1,5 +1,6 @@
 #include "tucvrp/decomposition.hpp"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <sstream>
@@ -31,6 +32,8 @@ TEST_CASE("trivial decomposition contains one region at each level") {
 
     REQUIRE(decomposition.components[0].root == instance.depot());
     REQUIRE(decomposition.components[0].block_ids == std::vector<int>{0});
+    REQUIRE(decomposition.blocks[0].component_id == 0);
+    REQUIRE(decomposition.blocks[0].exit == -1);
     REQUIRE(decomposition.blocks[0].cluster_ids == std::vector<int>{0});
     REQUIRE(decomposition.clusters[0].cell_ids == std::vector<int>{0});
     REQUIRE(decomposition.cells[0].vertices == rooted_tree.vertices);
@@ -75,4 +78,123 @@ TEST_CASE("bounded instance decomposition builds leaf and internal components") 
     REQUIRE(decomposition.components[1].terminal_count == 0);
     REQUIRE_FALSE(decomposition.components[1].is_leaf);
     REQUIRE_FALSE(decomposition.components[1].is_big);
+
+    REQUIRE(decomposition.blocks.size() == 3);
+
+    const auto& leaf_component = decomposition.components[0];
+    REQUIRE(leaf_component.block_ids.size() == 2);
+    REQUIRE(decomposition.blocks[leaf_component.block_ids[0]].root == 1);
+    REQUIRE(decomposition.blocks[leaf_component.block_ids[0]].exit == -1);
+    REQUIRE(decomposition.blocks[leaf_component.block_ids[1]].root == 1);
+    REQUIRE(decomposition.blocks[leaf_component.block_ids[1]].exit == -1);
+
+    const auto& internal_component = decomposition.components[1];
+    REQUIRE(internal_component.block_ids.size() == 1);
+    REQUIRE(decomposition.blocks[internal_component.block_ids[0]].root == 0);
+    REQUIRE(decomposition.blocks[internal_component.block_ids[0]].exit == 1);
+    REQUIRE(decomposition.blocks[internal_component.block_ids[0]].demand == 0.0);
+}
+
+TEST_CASE("block decomposition splits a component at big terminals") {
+    std::istringstream input(R"(
+3 0
+0 1 1
+1 2 1
+1
+2 0.2
+)");
+
+    const auto instance = Instance::parse(input);
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    const auto decomposition = DecompositionBuilder::decompose_bounded_instance(rooted_tree, 0.9);
+
+    REQUIRE(decomposition.components.size() == 1);
+    REQUIRE(decomposition.blocks.size() == 1);
+
+    const auto& component = decomposition.components[0];
+    REQUIRE(component.block_ids.size() == 1);
+
+    const auto& block = decomposition.blocks[component.block_ids[0]];
+    REQUIRE(block.root == 0);
+    REQUIRE(block.exit == 2);
+    REQUIRE(block.vertices == std::vector<int>{0, 1, 2});
+    REQUIRE(block.demand == 0.0);
+}
+
+TEST_CASE("bounded decomposition satisfies basic component and block invariants") {
+    Instance instance(0);
+    instance.add_edge(0, 1, 1.0);
+    instance.add_edge(1, 2, 1.0);
+    instance.add_edge(1, 3, 1.0);
+    instance.add_edge(2, 4, 0.0);
+    instance.add_edge(2, 5, 0.0);
+    instance.add_edge(3, 6, 0.0);
+    instance.add_edge(3, 7, 0.0);
+    instance.add_terminal(4, 0.11);
+    instance.add_terminal(5, 0.12);
+    instance.add_terminal(6, 0.13);
+    instance.add_terminal(7, 0.14);
+    instance.validate();
+
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    const auto decomposition = DecompositionBuilder::decompose_bounded_instance(rooted_tree, 0.9);
+
+    for (const auto& component : decomposition.components) {
+        REQUIRE_FALSE(component.vertices.empty());
+        REQUIRE(component.block_ids.size() >= 1);
+        REQUIRE(component.vertices.front() == component.root);
+        if (component.exit != -1) {
+            REQUIRE(std::find(component.vertices.begin(), component.vertices.end(), component.exit) !=
+                    component.vertices.end());
+        }
+
+        for (const int block_id : component.block_ids) {
+            const auto& block = decomposition.blocks[block_id];
+            REQUIRE(block.component_id == component.id);
+            REQUIRE_FALSE(block.vertices.empty());
+            REQUIRE(block.vertices.front() == block.root);
+            REQUIRE(std::find(component.vertices.begin(), component.vertices.end(), block.root) !=
+                    component.vertices.end());
+            if (block.exit != -1) {
+                REQUIRE(std::find(block.vertices.begin(), block.vertices.end(), block.exit) != block.vertices.end());
+            }
+
+            double expected_demand = 0.0;
+            for (const int v : block.vertices) {
+                if (v != block.root && v != block.exit && rooted_tree.is_terminal(v)) {
+                    expected_demand += rooted_tree.demands[v];
+                }
+            }
+            REQUIRE(block.demand == Catch::Approx(expected_demand));
+        }
+    }
+}
+
+TEST_CASE("cluster and cell placeholder decompositions are no-ops") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 1
+1 3 1
+2
+2 0.4
+3 0.5
+)");
+
+    const auto instance = Instance::parse(input);
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    auto decomposition = DecompositionBuilder::make_trivial(rooted_tree);
+
+    const auto original_clusters = decomposition.clusters.size();
+    const auto original_cells = decomposition.cells.size();
+    const auto original_cluster_ids = decomposition.blocks[0].cluster_ids;
+    const auto original_cell_ids = decomposition.clusters[0].cell_ids;
+
+    DecompositionBuilder::decompose_blocks_into_clusters(decomposition, rooted_tree, 0.25);
+    DecompositionBuilder::decompose_clusters_into_cells(decomposition, rooted_tree, 0.25);
+
+    REQUIRE(decomposition.clusters.size() == original_clusters);
+    REQUIRE(decomposition.cells.size() == original_cells);
+    REQUIRE(decomposition.blocks[0].cluster_ids == original_cluster_ids);
+    REQUIRE(decomposition.clusters[0].cell_ids == original_cell_ids);
 }

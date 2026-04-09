@@ -5,7 +5,7 @@ PKG_CONFIG ?= pkg-config
 CATCH2_CFLAGS := $(shell $(PKG_CONFIG) --cflags catch2)
 CATCH2_LIBS := $(shell $(PKG_CONFIG) --libs catch2-with-main)
 
-APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition.cpp src/algorithms/one_point_five_approx.cpp
+APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition/common.cpp src/decomposition/components.cpp src/decomposition/blocks.cpp src/decomposition/clusters.cpp src/decomposition/cells.cpp src/algorithms/one_point_five_approx.cpp
 APP_OBJS := $(patsubst src/%.cpp,build/src/%.o,$(APP_SRCS))
 APP_BIN := bin/tucvrp
 
@@ -35,6 +35,9 @@ $(TEST_BIN): $(TEST_OBJS) | bin
 build/src/algorithms/%.o: src/algorithms/%.cpp | build/src/algorithms
 	$(CXX) $(CXXFLAGS) $(OPTFLAGS) -c $< -o $@
 
+build/src/decomposition/%.o: src/decomposition/%.cpp | build/src/decomposition
+	$(CXX) $(CXXFLAGS) $(OPTFLAGS) -c $< -o $@
+
 build/src/%.o: src/%.cpp | build/src
 	$(CXX) $(CXXFLAGS) $(OPTFLAGS) -c $< -o $@
 
@@ -45,6 +48,9 @@ build/src:
 	mkdir -p $@
 
 build/src/algorithms:
+	mkdir -p $@
+
+build/src/decomposition:
 	mkdir -p $@
 
 build/tests:

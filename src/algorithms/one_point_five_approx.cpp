@@ -59,14 +59,13 @@ SolveResult OnePointFiveApproxSolver::solve(const Instance& instance, const OneP
         });
     const int i_0 = Rng::uniform_int(0, one_over_epsilon - 1);
 
-    const double smallest_terminal_distance = dists[terminals[0].vertex];
-    const int smallest_bucket =
-        static_cast<int>(std::floor(std::log(smallest_terminal_distance) / std::log(one_over_epsilon)));
-    int cur_exp_idx = floor_div(smallest_bucket - i_0, one_over_epsilon);
+    int cur_exp_idx = INT_MIN;
     std::size_t i = 0;
     while (i < terminals.size()) {
         // Y_j captures one bounded-distance slab selected by the random offset.
         std::vector<Terminal> y_j;
+        int current_bucket = static_cast<int>(std::floor(std::log(dists[terminals[i].vertex]) / std::log(one_over_epsilon)));
+        cur_exp_idx = std::max(cur_exp_idx, floor_div(current_bucket - i_0, one_over_epsilon));
         int cur_exp = one_over_epsilon * cur_exp_idx + i_0;
         while (i < terminals.size() &&
                dists[terminals[i].vertex] < std::pow(one_over_epsilon, cur_exp + 1)) {
@@ -74,7 +73,7 @@ SolveResult OnePointFiveApproxSolver::solve(const Instance& instance, const OneP
             ++i;
         }
         if (!y_j.empty()) {
-            const Instance subinstance(normalized_instance, y_j);
+            const Instance subinstance = Instance::with_terminals(normalized_instance, y_j);
             const SolveResult subresult = solve_bounded_distance(subinstance, normalized_params);
             result.cost += subresult.cost;
             result.tours.insert(result.tours.end(), subresult.tours.begin(), subresult.tours.end());
@@ -91,7 +90,7 @@ SolveResult OnePointFiveApproxSolver::solve(const Instance& instance, const OneP
             }
         }
         if (!z_j.empty()) {
-            const Instance subinstance(normalized_instance, z_j);
+            const Instance subinstance = Instance::with_terminals(normalized_instance, z_j);
             const SolveResult subresult = solve_bounded_distance(subinstance, normalized_params);
             result.cost += subresult.cost;
             result.tours.insert(result.tours.end(), subresult.tours.begin(), subresult.tours.end());

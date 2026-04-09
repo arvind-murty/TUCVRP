@@ -24,14 +24,6 @@ Instance::Instance(int depot) : depot_(depot), max_vertex_id_(depot) {
     ensure_vertex(depot);
 }
 
-// Copy an existing instance, preserving tree structure and terminal data.
-Instance::Instance(const Instance& other, const std::vector<Terminal>& terminals)
-    : depot_(other.depot_),
-      max_vertex_id_(other.max_vertex_id_),
-      adjacency_(other.adjacency_),
-      terminals_(terminals),
-      demand_by_vertex_(other.demand_by_vertex_) {}
-
 // Expand storage so the given vertex id exists in the adjacency list.
 void Instance::ensure_vertex(int vertex) {
     if (vertex < 0) {
@@ -357,6 +349,29 @@ Instance Instance::parse_file(const std::string& path) {
         throw std::runtime_error("failed to open instance file: " + path);
     }
     return parse(stream);
+}
+
+Instance Instance::with_terminals(const Instance& other, const std::vector<Terminal>& terminals) {
+    Instance instance;
+    instance.depot_ = other.depot_;
+    instance.max_vertex_id_ = other.max_vertex_id_;
+    instance.adjacency_ = other.adjacency_;
+    instance.terminals_ = terminals;
+
+    for (const auto& terminal : terminals) {
+        if (terminal.vertex < 0 || terminal.vertex >= static_cast<int>(instance.adjacency_.size())) {
+            throw std::invalid_argument("with_terminals received a terminal with invalid vertex id");
+        }
+        if (terminal.demand <= 0.0 || terminal.demand > 1.0 + kEps) {
+            throw std::invalid_argument("with_terminals received a terminal with invalid demand");
+        }
+        if (instance.demand_by_vertex_.contains(terminal.vertex)) {
+            throw std::invalid_argument("with_terminals received duplicate terminals");
+        }
+        instance.demand_by_vertex_[terminal.vertex] = terminal.demand;
+    }
+
+    return instance;
 }
 
 std::ostream& operator<<(std::ostream& out, const Instance& instance) {

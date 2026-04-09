@@ -22,7 +22,6 @@ class Instance {
   public:
     Instance() = default;
     explicit Instance(int depot);
-    Instance(const Instance& other, const std::vector<Terminal>& terminals);
 
     // Set the depot vertex for the instance.
     void set_depot(int depot);
@@ -70,6 +69,8 @@ class Instance {
     static Instance parse(std::istream& input);
     // Parse an instance from a file on disk.
     static Instance parse_file(const std::string& path);
+    // Copy the tree structure from another instance, but replace the terminal set entirely.
+    static Instance with_terminals(const Instance& other, const std::vector<Terminal>& terminals);
 
   private:
     int depot_ = -1;
