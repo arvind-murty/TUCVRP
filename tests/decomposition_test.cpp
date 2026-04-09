@@ -3,6 +3,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <sstream>
 
 using tucvrp::DecompositionBuilder;
@@ -36,6 +37,8 @@ TEST_CASE("trivial decomposition contains one region at each level") {
     REQUIRE(decomposition.blocks[0].exit == -1);
     REQUIRE(decomposition.blocks[0].cluster_ids == std::vector<int>{0});
     REQUIRE(decomposition.clusters[0].cell_ids == std::vector<int>{0});
+    REQUIRE(decomposition.cells[0].cluster_id == 0);
+    REQUIRE(decomposition.cells[0].exit == -1);
     REQUIRE(decomposition.cells[0].vertices == rooted_tree.vertices);
 }
 
@@ -234,10 +237,76 @@ TEST_CASE("cluster decomposition can fall back to a whole-block cluster") {
     REQUIRE(decomposition.clusters[0].exit == decomposition.blocks[0].exit);
     REQUIRE(decomposition.clusters[0].vertices == decomposition.blocks[0].vertices);
     REQUIRE(decomposition.clusters[0].demand == Catch::Approx(decomposition.blocks[0].demand));
-    const auto cluster_cell_ids_after_split = decomposition.clusters[0].cell_ids;
 
     DecompositionBuilder::decompose_clusters_into_cells(decomposition, rooted_tree, 0.25);
 
     REQUIRE(decomposition.cells.size() == original_cells);
-    REQUIRE(decomposition.clusters[0].cell_ids == cluster_cell_ids_after_split);
+    REQUIRE(decomposition.clusters[0].cell_ids == std::vector<int>{0});
+}
+
+TEST_CASE("ending clusters decompose into a single cell") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 1
+1 3 1
+2
+2 0.4
+3 0.5
+)");
+
+    const auto instance = Instance::parse(input);
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    auto decomposition = DecompositionBuilder::make_trivial(rooted_tree);
+
+    DecompositionBuilder::decompose_clusters_into_cells(decomposition, rooted_tree, 0.25);
+
+    REQUIRE(decomposition.clusters.size() == 1);
+    REQUIRE(decomposition.cells.size() == 1);
+    REQUIRE(decomposition.clusters[0].cell_ids == std::vector<int>{0});
+    REQUIRE(decomposition.cells[0].cluster_id == 0);
+    REQUIRE(decomposition.cells[0].root == decomposition.clusters[0].root);
+    REQUIRE(decomposition.cells[0].exit == -1);
+    REQUIRE(decomposition.cells[0].vertices == decomposition.clusters[0].vertices);
+    REQUIRE(decomposition.cells[0].demand == Catch::Approx(decomposition.clusters[0].demand));
+}
+
+TEST_CASE("passing clusters decompose into cells by cutting the spine") {
+    std::istringstream input(R"(
+6 0
+0 1 1
+1 2 1
+2 3 1
+3 4 1
+4 5 1
+1
+5 0.2
+)");
+
+    const auto instance = Instance::parse(input);
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    const auto decomposition = DecompositionBuilder::decompose_bounded_instance(rooted_tree, 0.25);
+
+    const auto* passing_cluster = static_cast<const tucvrp::Cluster*>(nullptr);
+    for (const auto& cluster : decomposition.clusters) {
+        if (cluster.exit == 5 && cluster.vertices.size() > 1) {
+            passing_cluster = &cluster;
+            break;
+        }
+    }
+    REQUIRE(passing_cluster != nullptr);
+    const auto& cluster = *passing_cluster;
+    REQUIRE(cluster.exit == 5);
+    REQUIRE(decomposition.cells.size() == 4);
+    REQUIRE(cluster.cell_ids.size() == 4);
+
+    for (const int cell_id : cluster.cell_ids) {
+        const auto& cell = decomposition.cells[cell_id];
+        REQUIRE(cell.cluster_id == cluster.id);
+        REQUIRE_FALSE(cell.vertices.empty());
+        REQUIRE(cell.exit != -1);
+        REQUIRE(std::find(cell.vertices.begin(), cell.vertices.end(), cell.root) != cell.vertices.end());
+        REQUIRE(std::find(cell.vertices.begin(), cell.vertices.end(), cell.exit) != cell.vertices.end());
+        REQUIRE(cell.demand >= 0.0);
+    }
 }

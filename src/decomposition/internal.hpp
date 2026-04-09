@@ -31,5 +31,11 @@ void append_cluster(TreeDecomposition& decomposition,
                     int exit,
                     double demand,
                     std::vector<int> vertices);
+void append_cell(TreeDecomposition& decomposition,
+                 int cluster_id,
+                 int root,
+                 int exit,
+                 double demand,
+                 std::vector<int> vertices);
 
 }  // namespace tucvrp::decomposition_detail

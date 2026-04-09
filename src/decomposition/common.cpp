@@ -108,4 +108,22 @@ void append_cluster(TreeDecomposition& decomposition,
     decomposition.blocks[block_id].cluster_ids.push_back(cluster_id);
 }
 
+void append_cell(TreeDecomposition& decomposition,
+                 int cluster_id,
+                 int root,
+                 int exit,
+                 double demand,
+                 std::vector<int> vertices) {
+    const int cell_id = static_cast<int>(decomposition.cells.size());
+    decomposition.cells.push_back(Cell{
+        .id = cell_id,
+        .cluster_id = cluster_id,
+        .root = root,
+        .exit = exit,
+        .demand = demand,
+        .vertices = std::move(vertices),
+    });
+    decomposition.clusters[cluster_id].cell_ids.push_back(cell_id);
+}
+
 }  // namespace tucvrp::decomposition_detail

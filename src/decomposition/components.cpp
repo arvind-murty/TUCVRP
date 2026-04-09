@@ -128,16 +128,19 @@ TreeDecomposition DecompositionBuilder::make_trivial(const RootedTreeData& roote
     TreeDecomposition decomposition;
     decomposition.depot = rooted_tree.depot;
 
-    decomposition.cells.push_back(Cell{
-        .id = 0,
-        .root = rooted_tree.depot,
-        .vertices = rooted_tree.vertices,
-    });
-
     double total_demand = 0.0;
     for (const int terminal : rooted_tree.terminal_vertices) {
         total_demand += rooted_tree.demands[terminal];
     }
+
+    decomposition.cells.push_back(Cell{
+        .id = 0,
+        .cluster_id = 0,
+        .root = rooted_tree.depot,
+        .exit = -1,
+        .demand = total_demand,
+        .vertices = rooted_tree.vertices,
+    });
 
     decomposition.clusters.push_back(Cluster{
         .id = 0,

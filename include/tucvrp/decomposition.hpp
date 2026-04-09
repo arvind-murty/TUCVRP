@@ -9,7 +9,10 @@ namespace tucvrp {
 // Lowest-level region used by the paper's decomposition hierarchy.
 struct Cell {
     int id = -1;
+    int cluster_id = -1;
     int root = -1;
+    int exit = -1;
+    double demand = 0.0;
     std::vector<int> vertices;
 };
 

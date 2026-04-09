@@ -13,6 +13,8 @@ using namespace decomposition_detail;
 std::vector<bool> block_membership(const RootedTreeData& rooted_tree, const Block& block) {
     std::vector<bool> in_block(rooted_tree.parent.size(), false);
     for (const int v : block.vertices) {
+        // Convert the explicit block vertex list into a constant-time membership map
+        // for all subsequent local traversals inside this block.
         in_block[v] = true;
     }
     return in_block;
@@ -23,6 +25,7 @@ std::vector<int> block_children(const RootedTreeData& rooted_tree,
                                 int vertex) {
     std::vector<int> children;
     for (const int child : rooted_tree.children[vertex]) {
+        // Only keep rooted children that still lie inside the current block.
         if (in_block[child]) {
             children.push_back(child);
         }
@@ -34,11 +37,13 @@ std::vector<int> block_postorder(const RootedTreeData& rooted_tree,
                                  const std::vector<bool>& in_block,
                                  int root) {
     std::vector<int> order;
+    // Two-phase DFS to simulate recursive postorder without recursion.
     std::vector<std::pair<int, bool>> stack{{root, false}};
     while (!stack.empty()) {
         const auto [u, expanded] = stack.back();
         stack.pop_back();
         if (!expanded) {
+            // Revisit u after every child in the block has been processed.
             stack.emplace_back(u, true);
             for (auto it = rooted_tree.children[u].rbegin(); it != rooted_tree.children[u].rend(); ++it) {
                 if (in_block[*it]) {
@@ -71,6 +76,7 @@ std::vector<double> block_subtree_demands(const RootedTreeData& rooted_tree,
         }
         const int p = rooted_tree.parent[u];
         if (p != -1 && in_block[p]) {
+            // Push each child's already-computed local demand into its parent.
             demand[p] += demand[u];
         }
     }
@@ -88,6 +94,7 @@ std::vector<int> collect_block_subtree_vertices(const RootedTreeData& rooted_tre
         stack.pop_back();
         vertices.push_back(u);
         for (auto it = rooted_tree.children[u].rbegin(); it != rooted_tree.children[u].rend(); ++it) {
+            // This is an ordinary subtree walk, except that we ignore children leaving the block.
             if (in_block[*it]) {
                 stack.push_back(*it);
             }
@@ -97,6 +104,8 @@ std::vector<int> collect_block_subtree_vertices(const RootedTreeData& rooted_tre
 }
 
 double cluster_subgraph_demand(const std::vector<double>& subtree_demand, int root, int exit) {
+    // Internal clusters are represented as subtree(root) minus subtree(exit),
+    // with exit retained as the boundary vertex. The demand is therefore a subtraction.
     if (exit == -1) {
         return subtree_demand[root];
     }
@@ -111,7 +120,8 @@ std::vector<int> collect_internal_cluster_vertices(const RootedTreeData& rooted_
                                                    int root,
                                                    int exit) {
     if (root == exit) {
-        return {};
+        // When the root and exit coincide, the cluster is just that boundary vertex.
+        return {exit};
     }
 
     std::vector<int> vertices;
@@ -121,11 +131,13 @@ std::vector<int> collect_internal_cluster_vertices(const RootedTreeData& rooted_
         stack.pop_back();
         vertices.push_back(u);
         for (auto it = rooted_tree.children[u].rbegin(); it != rooted_tree.children[u].rend(); ++it) {
+            // The exit subtree belongs to the next cluster toward the block root, so do not cross it.
             if (in_block[*it] && *it != exit) {
                 stack.push_back(*it);
             }
         }
     }
+    // Keep the exit vertex itself so later phases know where this cluster attaches upward.
     vertices.push_back(exit);
     return vertices;
 }
@@ -137,6 +149,8 @@ int child_on_path_to_descendant(const RootedTreeData& rooted_tree,
     int current = descendant;
     int child = -1;
     while (current != ancestor) {
+        // Remember the last vertex before reaching the ancestor: that is the child of `ancestor`
+        // lying on the ancestor-to-descendant path.
         child = current;
         current = rooted_tree.parent[current];
         if (current == -1 || !in_block[current]) {
@@ -152,6 +166,8 @@ int deepest_big_cluster_root_on_path(const RootedTreeData& rooted_tree,
                                      int exit,
                                      double gamma0) {
     for (int candidate = exit; candidate != path_root; candidate = rooted_tree.parent[candidate]) {
+        // Scan upward from the lower boundary. The first candidate whose local demand is still at
+        // least Gamma_0 is the deepest valid root for the next big internal cluster.
         if (cluster_subgraph_demand(subtree_demand, candidate, exit) >= gamma0) {
             return candidate;
         }
@@ -192,6 +208,8 @@ void analyze_block_backbone(const RootedTreeData& rooted_tree,
         bool has_backbone_child = false;
         int backbone_child_count = 0;
         for (const int child : children) {
+            // In Algorithm 3, a leaf-cluster root is a highest local subtree whose demand is at
+            // least Gamma_0 while every child subtree has demand below Gamma_0.
             if (subtree_demand[child] >= gamma0) {
                 children_small = false;
             }
@@ -260,6 +278,7 @@ void create_leaf_clusters(TreeDecomposition& decomposition,
             root,
             exit,
             cluster_subgraph_demand(subtree_demand, root, exit),
+            // A leaf cluster is exactly the subtree rooted at `root` within the block.
             collect_block_subtree_vertices(rooted_tree, in_block, root));
     }
 }
@@ -306,6 +325,7 @@ void create_internal_clusters(TreeDecomposition& decomposition,
     }
 
     const std::vector<int> depth = compute_depths(rooted_tree);
+    // Process key vertices top-down so each path segment is split before any deeper segment nested below it.
     std::sort(non_root_keys.begin(), non_root_keys.end(), [&depth](int a, int b) { return depth[a] < depth[b]; });
 
     for (const int v2 : non_root_keys) {
@@ -326,6 +346,7 @@ void create_internal_clusters(TreeDecomposition& decomposition,
                 x,
                 cluster_subgraph_demand(subtree_demand, chosen, x),
                 collect_internal_cluster_vertices(rooted_tree, in_block, chosen, x));
+            // The remaining unexplained segment now stops at the newly created cluster root.
             x = chosen;
         }
 
@@ -358,11 +379,19 @@ void decompose_block_into_clusters(TreeDecomposition& decomposition,
     std::vector<int> key_vertices;
     analyze_block_backbone(rooted_tree, block, in_block, subtree_demand, gamma0, leaf_cluster_roots, key_vertices);
 
+    // If no finer split is needed, the whole block itself is a single cluster.
+    if (leaf_cluster_roots.empty() && key_vertices.size() == 1 && key_vertices[0] == block.root) {
+        append_cluster(decomposition, block.id, block.root, block.exit, block.demand, block.vertices);
+        return;
+    }
+
     create_leaf_clusters(decomposition, rooted_tree, block, in_block, subtree_demand, leaf_cluster_roots);
     const bool needs_exit_singleton = (block.exit != -1 && !block_exit_is_covered(decomposition, block));
     ensure_block_exit_cluster(decomposition, block);
     if (needs_exit_singleton &&
         std::find(key_vertices.begin(), key_vertices.end(), block.exit) == key_vertices.end()) {
+        // The singleton exit cluster behaves like an extra leaf cluster endpoint in Algorithm 4,
+        // so promote the block exit to a key vertex before decomposing the remaining internal part.
         key_vertices.push_back(block.exit);
     }
     create_internal_clusters(decomposition, rooted_tree, block, in_block, subtree_demand, key_vertices, gamma0);
