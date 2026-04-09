@@ -16,7 +16,10 @@ struct Cell {
 // A cluster groups cells inside one block.
 struct Cluster {
     int id = -1;
+    int block_id = -1;
     int root = -1;
+    int exit = -1;
+    double demand = 0.0;
     std::vector<int> vertices;
     std::vector<int> cell_ids;
 };

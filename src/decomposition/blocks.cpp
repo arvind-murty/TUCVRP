@@ -7,13 +7,119 @@ namespace tucvrp {
 
 namespace {
 
+using namespace decomposition_detail;
+
+std::vector<bool> component_membership(const RootedTreeData& rooted_tree, const Component& component) {
+    std::vector<bool> in_component(rooted_tree.parent.size(), false);
+    for (const int v : component.vertices) {
+        // Components already store their explicit vertex sets, so convert that list into a fast
+        // membership bitmap for the block-decomposition helpers below.
+        in_component[v] = true;
+    }
+    return in_component;
+}
+
+// Build the subtree T_U spanning the vertices in U from Section 4.1:
+// the big terminals in the component, the component root, and possibly the component exit.
+std::vector<bool> spanning_subtree_for_block_decomposition(const RootedTreeData& rooted_tree,
+                                                           const Component& component,
+                                                           const std::vector<bool>& in_component,
+                                                           double gamma0) {
+    std::vector<bool> in_u(rooted_tree.parent.size(), false);
+    // By definition, the component root always belongs to U.
+    in_u[component.root] = true;
+    if (component.exit != -1) {
+        // Internal components also include their exit vertex in U.
+        in_u[component.exit] = true;
+    }
+
+    for (const int v : component.vertices) {
+        // Big terminals are exactly the terminals of this component whose demand exceeds Gamma_0.
+        if (v != component.root && v != component.exit && rooted_tree.is_terminal(v) &&
+            rooted_tree.demands[v] > gamma0) {
+            in_u[v] = true;
+        }
+    }
+
+    std::vector<bool> in_tu(rooted_tree.parent.size(), false);
+    for (const int start : component.vertices) {
+        if (!in_u[start]) {
+            continue;
+        }
+        // The subtree spanning U is the union of all root-to-u paths for u in U.
+        // Since the input is already rooted, each such path is recovered by repeatedly following parent pointers.
+        for (int v = start; v != component.root; v = rooted_tree.parent[v]) {
+            if (v == -1 || !in_component[v]) {
+                throw std::logic_error("component root is not an ancestor of a block key vertex");
+            }
+            in_tu[v] = true;
+        }
+        // Ensure the component root itself is marked once at the end of every path.
+        in_tu[component.root] = true;
+    }
+
+    return in_tu;
+}
+
+std::vector<bool> block_key_vertices(const RootedTreeData& rooted_tree,
+                                     const Component& component,
+                                     const std::vector<bool>& in_component,
+                                     const std::vector<bool>& in_tu,
+                                     double gamma0) {
+    std::vector<bool> is_block_key(rooted_tree.parent.size(), false);
+
+    for (const int v : component.vertices) {
+        if (!in_tu[v]) {
+            // Vertices outside T_U do not participate in the block split.
+            continue;
+        }
+
+        // A vertex belongs to U if it is the component root, the component exit,
+        // or a big terminal in this component.
+        bool in_u = (v == component.root || v == component.exit);
+        if (rooted_tree.is_terminal(v) && v != component.root && v != component.exit &&
+            rooted_tree.demands[v] > gamma0) {
+            in_u = true;
+        }
+
+        int tu_child_count = 0;
+        for (const int child : rooted_tree.children[v]) {
+            if (in_component[child] && in_tu[child]) {
+                // Only children that stay inside both the component and T_U count toward
+                // the "two children in T_U" condition from Section 4.1.
+                ++tu_child_count;
+            }
+        }
+
+        // Section 4.1: a key vertex is either in U or has two children in T_U.
+        if (in_u || tu_child_count >= 2) {
+            is_block_key[v] = true;
+        }
+    }
+
+    return is_block_key;
+}
+
+double block_demand(const RootedTreeData& rooted_tree,
+                    const std::vector<int>& vertices,
+                    int root,
+                    int exit) {
+    double demand = 0.0;
+    for (const int v : vertices) {
+        // By definition, only terminals strictly inside the block contribute to its demand.
+        // So terminals at the root or the exit are excluded.
+        if (v != root && v != exit && rooted_tree.is_terminal(v)) {
+            demand += rooted_tree.demands[v];
+        }
+    }
+    return demand;
+}
+
 void decompose_component_into_blocks(TreeDecomposition& decomposition,
                                      const RootedTreeData& rooted_tree,
                                      int component_id,
                                      double epsilon,
                                      double gamma) {
-    using namespace decomposition_detail;
-
     const Component& component = decomposition.components[component_id];
     const double gamma0 = big_terminal_threshold(epsilon, gamma);
     // Precompute the three ingredients from Section 4.1:

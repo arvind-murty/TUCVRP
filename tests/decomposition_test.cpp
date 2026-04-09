@@ -170,7 +170,46 @@ TEST_CASE("bounded decomposition satisfies basic component and block invariants"
     }
 }
 
-TEST_CASE("cluster and cell placeholder decompositions are no-ops") {
+TEST_CASE("cluster decomposition creates clusters consistent with their blocks") {
+    std::istringstream input(R"(
+3 0
+0 1 1
+1 2 1
+1
+2 0.2
+)");
+
+    const auto instance = Instance::parse(input);
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    const auto decomposition = DecompositionBuilder::decompose_bounded_instance(rooted_tree, 0.9);
+
+    REQUIRE(decomposition.blocks.size() == 1);
+    REQUIRE(decomposition.clusters.size() >= 1);
+
+    const auto& block = decomposition.blocks[0];
+    REQUIRE_FALSE(block.cluster_ids.empty());
+
+    for (const int cluster_id : block.cluster_ids) {
+        const auto& cluster = decomposition.clusters[cluster_id];
+        REQUIRE(cluster.block_id == block.id);
+        REQUIRE_FALSE(cluster.vertices.empty());
+        REQUIRE(cluster.vertices.front() == cluster.root);
+        REQUIRE(std::find(block.vertices.begin(), block.vertices.end(), cluster.root) != block.vertices.end());
+        if (cluster.exit != -1) {
+            REQUIRE(std::find(cluster.vertices.begin(), cluster.vertices.end(), cluster.exit) != cluster.vertices.end());
+        }
+
+        double expected_demand = 0.0;
+        for (const int v : cluster.vertices) {
+            if (v != cluster.root && v != cluster.exit && rooted_tree.is_terminal(v)) {
+                expected_demand += rooted_tree.demands[v];
+            }
+        }
+        REQUIRE(cluster.demand == Catch::Approx(expected_demand));
+    }
+}
+
+TEST_CASE("cluster decomposition can fall back to a whole-block cluster") {
     std::istringstream input(R"(
 4 0
 0 1 1
@@ -185,16 +224,20 @@ TEST_CASE("cluster and cell placeholder decompositions are no-ops") {
     const auto rooted_tree = RootedTreeBuilder::build(instance);
     auto decomposition = DecompositionBuilder::make_trivial(rooted_tree);
 
-    const auto original_clusters = decomposition.clusters.size();
     const auto original_cells = decomposition.cells.size();
-    const auto original_cluster_ids = decomposition.blocks[0].cluster_ids;
-    const auto original_cell_ids = decomposition.clusters[0].cell_ids;
 
     DecompositionBuilder::decompose_blocks_into_clusters(decomposition, rooted_tree, 0.25);
+
+    REQUIRE(decomposition.blocks[0].cluster_ids.size() == 1);
+    REQUIRE(decomposition.clusters.size() == 1);
+    REQUIRE(decomposition.clusters[0].root == decomposition.blocks[0].root);
+    REQUIRE(decomposition.clusters[0].exit == decomposition.blocks[0].exit);
+    REQUIRE(decomposition.clusters[0].vertices == decomposition.blocks[0].vertices);
+    REQUIRE(decomposition.clusters[0].demand == Catch::Approx(decomposition.blocks[0].demand));
+    const auto cluster_cell_ids_after_split = decomposition.clusters[0].cell_ids;
+
     DecompositionBuilder::decompose_clusters_into_cells(decomposition, rooted_tree, 0.25);
 
-    REQUIRE(decomposition.clusters.size() == original_clusters);
     REQUIRE(decomposition.cells.size() == original_cells);
-    REQUIRE(decomposition.blocks[0].cluster_ids == original_cluster_ids);
-    REQUIRE(decomposition.clusters[0].cell_ids == original_cell_ids);
+    REQUIRE(decomposition.clusters[0].cell_ids == cluster_cell_ids_after_split);
 }
