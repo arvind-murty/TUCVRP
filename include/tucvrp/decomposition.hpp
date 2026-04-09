@@ -33,6 +33,10 @@ struct Block {
 struct Component {
     int id = -1;
     int root = -1;
+    int exit = -1;
+    int terminal_count = 0;
+    bool is_leaf = false;
+    bool is_big = false;
     std::vector<int> vertices;
     std::vector<int> block_ids;
 };
@@ -50,6 +54,8 @@ class DecompositionBuilder {
   public:
     // Build the trivial decomposition where the whole tree is one component/block/cluster/cell.
     static TreeDecomposition make_trivial(const RootedTreeData& rooted_tree);
+    // Build the component decomposition from Algorithm 5 using Gamma = 12 / epsilon and k = 1.
+    static TreeDecomposition decompose_bounded_instance(const RootedTreeData& rooted_tree, double epsilon);
 };
 
 }  // namespace tucvrp

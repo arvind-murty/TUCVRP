@@ -10,6 +10,15 @@ namespace tucvrp {
 
 namespace {
 
+int floor_div(int a, int b) {
+    int q = a / b;
+    int r = a % b;
+    if (r != 0 && ((r > 0) != (b > 0))) {
+        --q;
+    }
+    return q;
+}
+
 // Validate epsilon and snap it to the reciprocal grid used by the current scaffold.
 OnePointFiveApproxParams validate_params(const OnePointFiveApproxParams& params) {
     if (params.epsilon <= 0.0 || params.epsilon >= 1.0) {
@@ -51,9 +60,9 @@ SolveResult OnePointFiveApproxSolver::solve(const Instance& instance, const OneP
     const int i_0 = Rng::uniform_int(0, one_over_epsilon - 1);
 
     const double smallest_terminal_distance = dists[terminals[0].vertex];
-    int cur_exp_idx =
-        (static_cast<int>(std::floor(std::log(smallest_terminal_distance) / std::log(one_over_epsilon))) - i_0) /
-        one_over_epsilon;
+    const int smallest_bucket =
+        static_cast<int>(std::floor(std::log(smallest_terminal_distance) / std::log(one_over_epsilon)));
+    int cur_exp_idx = floor_div(smallest_bucket - i_0, one_over_epsilon);
     std::size_t i = 0;
     while (i < terminals.size()) {
         // Y_j captures one bounded-distance slab selected by the random offset.
@@ -96,10 +105,11 @@ SolveResult OnePointFiveApproxSolver::solve(const Instance& instance, const OneP
 
 SolveResult OnePointFiveApproxSolver::solve_bounded_distance(const Instance& instance,
                                                              const OnePointFiveApproxParams& params) {
-    (void)instance;
-    (void)params;
-    // TODO(phase 3): decompose the bounded-distance instance into components, then into
-    // blocks, clusters, and cells before solving local subproblems.
+    const RootedTreeData rooted_tree = RootedTreeBuilder::build(instance);
+    const TreeDecomposition decomposition =
+        DecompositionBuilder::decompose_bounded_instance(rooted_tree, params.epsilon);
+    (void)decomposition;
+    // TODO(phase 4): decompose each component further into blocks, clusters, and cells.
     // TODO(phase 4): local-solution machinery entry point.
     // TODO(phase 5): final DP and solution assembly entry point.
 

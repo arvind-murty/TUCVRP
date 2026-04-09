@@ -2,7 +2,6 @@
 
 #include "tucvrp/instance.hpp"
 
-#include <unordered_map>
 #include <vector>
 
 namespace tucvrp {
@@ -21,8 +20,10 @@ struct RootedTreeData {
     std::vector<std::vector<int>> children;
     // Depot distance for every vertex id.
     std::vector<double> distances_from_depot;
-    // Convenience lookup for terminal depot distances.
-    std::unordered_map<int, double> terminal_distances;
+    // Number of terminals in the subtree rooted at each vertex id.
+    std::vector<int> subtree_terminal_counts;
+    // Terminal membership for each vertex id.
+    std::vector<bool> terminal_flags;
 
     // Return whether a vertex is a terminal in this rooted view.
     [[nodiscard]] bool is_terminal(int vertex) const;
