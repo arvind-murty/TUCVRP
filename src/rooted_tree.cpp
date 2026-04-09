@@ -4,8 +4,10 @@
 
 namespace tucvrp {
 
+// Check terminal membership through the cached terminal-distance map.
 bool RootedTreeData::is_terminal(int vertex) const { return terminal_distances.contains(vertex); }
 
+// Build parent, child, and distance annotations for the rooted version of an instance.
 RootedTreeData RootedTreeBuilder::build(const Instance& instance) {
     instance.validate();
 
@@ -13,7 +15,7 @@ RootedTreeData RootedTreeBuilder::build(const Instance& instance) {
     rooted_tree.depot = instance.depot();
     rooted_tree.vertices = instance.vertices();
     rooted_tree.parent = instance.parent_array();
-    rooted_tree.distance_from_depot = instance.distance_from_depot();
+    rooted_tree.distances_from_depot = instance.distances_from_depot();
     rooted_tree.children.resize(instance.vertex_count());
     rooted_tree.terminal_distances = instance.terminal_distances();
 

@@ -29,6 +29,12 @@ TEST_CASE("instance parser validates a simple tree") {
     REQUIRE(terminal_distances.size() == 2);
     REQUIRE(terminal_distances.at(2) == Catch::Approx(3.0));
     REQUIRE(terminal_distances.at(3) == Catch::Approx(4.0));
+    const auto subtree_terminal_counts = instance.subtree_terminal_counts();
+    REQUIRE(subtree_terminal_counts.size() == 4);
+    REQUIRE(subtree_terminal_counts[0] == 2);
+    REQUIRE(subtree_terminal_counts[1] == 2);
+    REQUIRE(subtree_terminal_counts[2] == 1);
+    REQUIRE(subtree_terminal_counts[3] == 1);
     REQUIRE(instance.tour_cost_for_terminals({2}) == Catch::Approx(6.0));
     REQUIRE(instance.tour_cost_for_terminals({2, 3}) == Catch::Approx(12.0));
 }

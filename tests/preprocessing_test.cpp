@@ -156,3 +156,18 @@ TEST_CASE("make_binary_leaf_tree preserves the exact optimum on arbitrary trees"
     REQUIRE(is_binary_rooted_tree(normalized));
     REQUIRE(ExactSolver::solve(normalized).cost == Catch::Approx(exact.cost));
 }
+
+TEST_CASE("make_binary_leaf_tree removes terminals at effectively zero depot distance") {
+    Instance instance(0);
+    instance.add_edge(0, 1, 0.0);
+    instance.add_edge(1, 2, 2.0);
+    instance.add_terminal(1, 0.4);
+    instance.add_terminal(2, 0.3);
+    instance.validate();
+
+    const auto normalized = Preprocessor::make_binary_leaf_tree(instance);
+
+    REQUIRE(normalized.terminal_count() == 1);
+    REQUIRE_FALSE(normalized.is_terminal(1));
+    REQUIRE(normalized.is_terminal(2));
+}

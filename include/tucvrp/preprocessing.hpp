@@ -6,6 +6,7 @@
 
 namespace tucvrp {
 
+// Summary of depot-to-terminal distance spread for the bounded-distance reduction.
 struct BoundedDistanceStats {
     double min_distance = 0.0;
     double max_distance = 0.0;

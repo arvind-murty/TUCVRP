@@ -30,9 +30,9 @@ TEST_CASE("rooted tree builder exposes parent children and terminal distance dat
     REQUIRE(rooted_tree.parent[2] == 1);
     REQUIRE(rooted_tree.parent[3] == 1);
     REQUIRE(rooted_tree.parent[4] == 0);
-    REQUIRE(rooted_tree.distance_from_depot[2] == Catch::Approx(3.0));
-    REQUIRE(rooted_tree.distance_from_depot[3] == Catch::Approx(4.0));
-    REQUIRE(rooted_tree.distance_from_depot[4] == Catch::Approx(4.0));
+    REQUIRE(rooted_tree.distances_from_depot[2] == Catch::Approx(3.0));
+    REQUIRE(rooted_tree.distances_from_depot[3] == Catch::Approx(4.0));
+    REQUIRE(rooted_tree.distances_from_depot[4] == Catch::Approx(4.0));
     REQUIRE(rooted_tree.is_terminal(2));
     REQUIRE(rooted_tree.is_terminal(3));
     REQUIRE(rooted_tree.is_terminal(4));

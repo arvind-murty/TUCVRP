@@ -58,9 +58,11 @@ class Instance {
     // Return the rooted parent of every vertex after rooting the tree at the depot.
     [[nodiscard]] std::vector<int> parent_array() const;
     // Return the weighted distance from the depot to every vertex.
-    [[nodiscard]] std::vector<double> distance_from_depot() const;
+    [[nodiscard]] std::vector<double> distances_from_depot() const;
     // Return the depot distances for terminals
     [[nodiscard]] std::unordered_map<int, double> terminal_distances() const;
+    // Return the number of terminals in the subtree rooted at each vertex id.
+    [[nodiscard]] std::vector<int> subtree_terminal_counts() const;
     // Return the minimum round-trip tour cost to visit the given terminals from the depot.
     [[nodiscard]] double tour_cost_for_terminals(const std::vector<int>& terminal_vertices) const;
 

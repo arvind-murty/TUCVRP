@@ -30,7 +30,7 @@ BoundedDistanceStats Preprocessor::bounded_distance_stats(const Instance& instan
     }
     instance.validate();
 
-    const auto dist = instance.distance_from_depot();
+    const auto dist = instance.distances_from_depot();
     double min_distance = std::numeric_limits<double>::infinity();
     double max_distance = 0.0;
 
@@ -101,12 +101,14 @@ double Preprocessor::edge_load_lower_bound(const Instance& instance) {
     return lower_bound;
 }
 
-// Normalize an instance so every terminal is a leaf and every vertex has at most two children.
+// Normalize an instance by removing zero-distance terminals, pushing remaining terminals to leaves,
+// and replacing high branching with zero-cost binary chain nodes.
 Instance Preprocessor::make_binary_leaf_tree(const Instance& instance) {
     instance.validate();
 
     Instance out(instance.depot());
     int next_id = next_available_vertex_id(instance);
+    const std::vector<double> distances = instance.distances_from_depot();
     std::vector<std::pair<int, int>> stack;
     stack.emplace_back(instance.depot(), -1);
 
@@ -121,12 +123,14 @@ Instance Preprocessor::make_binary_leaf_tree(const Instance& instance) {
             }
         }
 
-        if (instance.is_terminal(u) && children.empty()) {
+        const bool keep_terminal = instance.is_terminal(u) && distances[u] > kEps;
+
+        if (keep_terminal && children.empty()) {
             out.add_terminal(u, instance.demand_of(u));
         }
 
         std::vector<Edge> outgoing = children;
-        if (instance.is_terminal(u) && !children.empty()) {
+        if (keep_terminal && !children.empty()) {
             const int promoted_leaf = next_id++;
             outgoing.push_back(Edge{promoted_leaf, 0.0});
             out.add_terminal(promoted_leaf, instance.demand_of(u));

@@ -197,7 +197,7 @@ std::vector<int> Instance::parent_array() const {
 }
 
 // Compute weighted depot-to-vertex distances throughout the tree.
-std::vector<double> Instance::distance_from_depot() const {
+std::vector<double> Instance::distances_from_depot() const {
     validate();
     std::vector<double> dist(adjacency_.size(), std::numeric_limits<double>::infinity());
     std::queue<int> queue;
@@ -218,12 +218,49 @@ std::vector<double> Instance::distance_from_depot() const {
 
 // Return depot-to-terminal distances
 std::unordered_map<int, double> Instance::terminal_distances() const {
-    const auto dist = distance_from_depot();
+    const auto dist = distances_from_depot();
     std::unordered_map<int, double> terminal_dist;
     for (const auto& terminal : terminals_) {
         terminal_dist[terminal.vertex] = dist[terminal.vertex];
     }
     return terminal_dist;
+}
+
+// Count how many terminals lie in the subtree rooted at each vertex id.
+std::vector<int> Instance::subtree_terminal_counts() const {
+    validate();
+
+    const auto parent = parent_array();
+    std::vector<int> terminal_count(adjacency_.size(), 0);
+    for (const auto& terminal : terminals_) {
+        terminal_count[terminal.vertex] += 1;
+    }
+
+    std::vector<int> order;
+    order.reserve(vertex_count());
+    std::vector<int> stack;
+    stack.push_back(depot_);
+    while (!stack.empty()) {
+        const int u = stack.back();
+        stack.pop_back();
+        order.push_back(u);
+        for (auto it = adjacency_[u].rbegin(); it != adjacency_[u].rend(); ++it) {
+            if (it->to != parent[u]) {
+                stack.push_back(it->to);
+            }
+        }
+    }
+
+    for (auto it = order.rbegin(); it != order.rend(); ++it) {
+        const int u = *it;
+        if (u == depot_) {
+            continue;
+        }
+        const int p = parent[u];
+        terminal_count[p] += terminal_count[u];
+    }
+
+    return terminal_count;
 }
 
 // Compute the minimum round-trip tour cost to visit a given terminal subset from the depot.
@@ -326,7 +363,7 @@ std::ostream& operator<<(std::ostream& out, const Instance& instance) {
     instance.validate();
 
     const auto parent = instance.parent_array();
-    const auto dist = instance.distance_from_depot();
+    const auto dist = instance.distances_from_depot();
     std::vector<std::vector<Edge>> children(instance.vertex_count());
     for (int u : instance.vertices()) {
         for (const auto& edge : instance.neighbors(u)) {

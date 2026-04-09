@@ -24,6 +24,7 @@ SolveResult ExactSolver::solve(const Instance& instance) {
     std::vector<double> subset_cost(mask_count, 0.0);
     std::vector<std::vector<int>> subset_terminals(mask_count);
 
+    // Precompute one-tour feasibility and cost for every terminal subset.
     for (int mask = 1; mask < mask_count; ++mask) {
         int bit = std::countr_zero(static_cast<unsigned int>(mask));
         int prev = mask & (mask - 1);
@@ -41,6 +42,7 @@ SolveResult ExactSolver::solve(const Instance& instance) {
     std::vector<int> choice(mask_count, -1);
     dp[0] = 0.0;
 
+    // Partition the full terminal set into feasible tours at minimum total cost.
     for (int mask = 1; mask < mask_count; ++mask) {
         for (int sub = mask; sub > 0; sub = (sub - 1) & mask) {
             if (!std::isfinite(subset_cost[sub])) {
@@ -57,6 +59,7 @@ SolveResult ExactSolver::solve(const Instance& instance) {
     SolveResult result;
     result.cost = dp[mask_count - 1];
 
+    // Recover the chosen tour partition from the DP choices.
     int mask = mask_count - 1;
     while (mask != 0) {
         int sub = choice[mask];

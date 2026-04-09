@@ -7,13 +7,21 @@
 
 namespace tucvrp {
 
+// Cached rooted-tree annotations derived from an instance.
 struct RootedTreeData {
+    // Depot/root of the rooted tree.
     int depot = -1;
+    // Active vertices in the rooted tree.
     std::vector<int> vertices;
+    // Terminal vertices in the same order as the instance terminals list.
     std::vector<int> terminal_vertices;
+    // Parent of each vertex, with -1 at the depot.
     std::vector<int> parent;
+    // Rooted children of each vertex.
     std::vector<std::vector<int>> children;
-    std::vector<double> distance_from_depot;
+    // Depot distance for every vertex id.
+    std::vector<double> distances_from_depot;
+    // Convenience lookup for terminal depot distances.
     std::unordered_map<int, double> terminal_distances;
 
     // Return whether a vertex is a terminal in this rooted view.

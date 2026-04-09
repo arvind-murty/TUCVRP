@@ -7,6 +7,7 @@
 
 namespace tucvrp {
 
+// Shared project-wide random number generator utilities.
 class Rng {
   public:
     // Return the shared engine used across the project.

@@ -2,6 +2,7 @@
 
 namespace tucvrp {
 
+// Build the simplest possible decomposition: one region at every hierarchy level.
 TreeDecomposition DecompositionBuilder::make_trivial(const RootedTreeData& rooted_tree) {
     TreeDecomposition decomposition;
     decomposition.depot = rooted_tree.depot;
