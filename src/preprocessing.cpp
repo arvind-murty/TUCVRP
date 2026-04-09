@@ -101,8 +101,8 @@ double Preprocessor::edge_load_lower_bound(const Instance& instance) {
     return lower_bound;
 }
 
-// Convert a general rooted tree into a binary one by adding zero-cost auxiliary vertices.
-Instance Preprocessor::make_tree_binary(const Instance& instance) {
+// Normalize an instance so every terminal is a leaf and every vertex has at most two children.
+Instance Preprocessor::make_binary_leaf_tree(const Instance& instance) {
     instance.validate();
 
     Instance out(instance.depot());
@@ -114,10 +114,6 @@ Instance Preprocessor::make_tree_binary(const Instance& instance) {
         const auto [u, parent] = stack.back();
         stack.pop_back();
 
-        if (instance.is_terminal(u)) {
-            out.add_terminal(u, instance.demand_of(u));
-        }
-
         std::vector<Edge> children;
         for (const auto& edge : instance.neighbors(u)) {
             if (edge.to != parent) {
@@ -125,26 +121,38 @@ Instance Preprocessor::make_tree_binary(const Instance& instance) {
             }
         }
 
-        if (children.size() <= 2) {
-            for (const auto& child : children) {
-                out.add_edge(u, child.to, child.weight);
+        if (instance.is_terminal(u) && children.empty()) {
+            out.add_terminal(u, instance.demand_of(u));
+        }
+
+        std::vector<Edge> outgoing = children;
+        if (instance.is_terminal(u) && !children.empty()) {
+            const int promoted_leaf = next_id++;
+            outgoing.push_back(Edge{promoted_leaf, 0.0});
+            out.add_terminal(promoted_leaf, instance.demand_of(u));
+        }
+
+        if (outgoing.size() <= 2) {
+            for (const auto& edge : outgoing) {
+                out.add_edge(u, edge.to, edge.weight);
             }
         } else {
             int chain_node = u;
-            for (std::size_t i = 0; i < children.size() - 2; ++i) {
-                out.add_edge(chain_node, children[i].to, children[i].weight);
-                int next_chain = next_id++;
+            for (std::size_t i = 0; i + 2 < outgoing.size(); ++i) {
+                out.add_edge(chain_node, outgoing[i].to, outgoing[i].weight);
+                const int next_chain = next_id++;
                 out.add_edge(chain_node, next_chain, 0.0);
                 chain_node = next_chain;
             }
-            out.add_edge(chain_node, children[children.size() - 2].to, children[children.size() - 2].weight);
-            out.add_edge(chain_node, children.back().to, children.back().weight);
+            out.add_edge(chain_node, outgoing[outgoing.size() - 2].to, outgoing[outgoing.size() - 2].weight);
+            out.add_edge(chain_node, outgoing.back().to, outgoing.back().weight);
         }
 
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
             stack.emplace_back(it->to, u);
         }
     }
+
     out.validate();
     return out;
 }

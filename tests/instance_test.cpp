@@ -1,5 +1,5 @@
 #include "tucvrp/instance.hpp"
-#include "tucvrp/solver.hpp"
+#include "tucvrp/exact_solver.hpp"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -25,8 +25,36 @@ TEST_CASE("instance parser validates a simple tree") {
     REQUIRE(instance.edge_count() == 3);
     REQUIRE(instance.terminal_count() == 2);
     REQUIRE(instance.total_demand() == Catch::Approx(1.0));
+    auto terminal_distances = instance.terminal_distances();
+    REQUIRE(terminal_distances.size() == 2);
+    REQUIRE(terminal_distances.at(2) == Catch::Approx(3.0));
+    REQUIRE(terminal_distances.at(3) == Catch::Approx(4.0));
     REQUIRE(instance.tour_cost_for_terminals({2}) == Catch::Approx(6.0));
     REQUIRE(instance.tour_cost_for_terminals({2, 3}) == Catch::Approx(12.0));
+}
+
+TEST_CASE("instance copy constructor preserves tree and terminal state") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 2
+1 3 3
+2
+2 0.4
+3 0.6
+)");
+
+    const auto original = Instance::parse(input);
+    const Instance copy(original);
+
+    REQUIRE(copy.depot() == original.depot());
+    REQUIRE(copy.vertex_count() == original.vertex_count());
+    REQUIRE(copy.edge_count() == original.edge_count());
+    REQUIRE(copy.terminal_count() == original.terminal_count());
+    REQUIRE(copy.total_demand() == Catch::Approx(original.total_demand()));
+    REQUIRE(copy.terminal_distances().at(2) == Catch::Approx(original.terminal_distances().at(2)));
+    REQUIRE(copy.terminal_distances().at(3) == Catch::Approx(original.terminal_distances().at(3)));
+    REQUIRE(copy.tour_cost_for_terminals({2, 3}) == Catch::Approx(original.tour_cost_for_terminals({2, 3})));
 }
 
 TEST_CASE("exact solver partitions terminals into feasible tours") {

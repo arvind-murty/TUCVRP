@@ -24,6 +24,14 @@ Instance::Instance(int depot) : depot_(depot), max_vertex_id_(depot) {
     ensure_vertex(depot);
 }
 
+// Copy an existing instance, preserving tree structure and terminal data.
+Instance::Instance(const Instance& other, const std::vector<Terminal>& terminals)
+    : depot_(other.depot_),
+      max_vertex_id_(other.max_vertex_id_),
+      adjacency_(other.adjacency_),
+      terminals_(terminals),
+      demand_by_vertex_(other.demand_by_vertex_) {}
+
 // Expand storage so the given vertex id exists in the adjacency list.
 void Instance::ensure_vertex(int vertex) {
     if (vertex < 0) {
@@ -206,6 +214,16 @@ std::vector<double> Instance::distance_from_depot() const {
         }
     }
     return dist;
+}
+
+// Return depot-to-terminal distances
+std::unordered_map<int, double> Instance::terminal_distances() const {
+    const auto dist = distance_from_depot();
+    std::unordered_map<int, double> terminal_dist;
+    for (const auto& terminal : terminals_) {
+        terminal_dist[terminal.vertex] = dist[terminal.vertex];
+    }
+    return terminal_dist;
 }
 
 // Compute the minimum round-trip tour cost to visit a given terminal subset from the depot.

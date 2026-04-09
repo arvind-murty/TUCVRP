@@ -1,6 +1,7 @@
 #include "tucvrp/instance.hpp"
 #include "tucvrp/preprocessing.hpp"
-#include "tucvrp/solver.hpp"
+#include "tucvrp/exact_solver.hpp"
+#include "tucvrp/rng.hpp"
 
 #include <iomanip>
 #include <iostream>
@@ -13,6 +14,8 @@ int main(int argc, char** argv) {
             std::cerr << "usage: " << argv[0] << " <instance-file>\n";
             return 1;
         }
+
+        tucvrp::Rng::seed(12345);
 
         const auto instance = tucvrp::Instance::parse_file(argv[1]);
         const auto exact = tucvrp::ExactSolver::solve(instance);

@@ -22,6 +22,7 @@ class Instance {
   public:
     Instance() = default;
     explicit Instance(int depot);
+    Instance(const Instance& other, const std::vector<Terminal>& terminals);
 
     // Set the depot vertex for the instance.
     void set_depot(int depot);
@@ -58,6 +59,8 @@ class Instance {
     [[nodiscard]] std::vector<int> parent_array() const;
     // Return the weighted distance from the depot to every vertex.
     [[nodiscard]] std::vector<double> distance_from_depot() const;
+    // Return the depot distances for terminals
+    [[nodiscard]] std::unordered_map<int, double> terminal_distances() const;
     // Return the minimum round-trip tour cost to visit the given terminals from the depot.
     [[nodiscard]] double tour_cost_for_terminals(const std::vector<int>& terminal_vertices) const;
 
