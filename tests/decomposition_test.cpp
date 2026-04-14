@@ -124,6 +124,99 @@ TEST_CASE("block decomposition splits a component at big terminals") {
     REQUIRE(block.demand == 0.0);
 }
 
+TEST_CASE("height reduction groups same-class components under one critical vertex") {
+    Instance instance(0);
+    instance.add_edge(0, 1, 1.0);
+    instance.add_edge(1, 2, 1.0);
+    instance.add_edge(1, 3, 1.0);
+
+    for (int i = 0; i < 8; ++i) {
+        const int left_internal = 4 + 2 * i;
+        const int left_leaf = left_internal + 1;
+        instance.add_edge(2, left_internal, 0.0);
+        instance.add_edge(left_internal, left_leaf, 0.0);
+        instance.add_terminal(left_leaf, 0.01);
+    }
+
+    for (int i = 0; i < 9; ++i) {
+        const int right_internal = 20 + 2 * i;
+        const int right_leaf = right_internal + 1;
+        instance.add_edge(3, right_internal, 0.0);
+        instance.add_edge(right_internal, right_leaf, 0.0);
+        instance.add_terminal(right_leaf, 0.01);
+    }
+
+    instance.validate();
+
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+    const auto decomposition = DecompositionBuilder::decompose_bounded_instance(rooted_tree, 0.9);
+    const auto reduced =
+        DecompositionBuilder::height_reduce_bounded_components(decomposition, rooted_tree, 0.9);
+
+    REQUIRE(reduced.groups.size() == 1);
+    REQUIRE(reduced.groups[0].component_ids == std::vector<int>{0, 1});
+    REQUIRE(reduced.groups[0].critical_vertex == 0);
+
+    REQUIRE(reduced.original_parent_component[0] == 1);
+    REQUIRE(reduced.original_parent_component[1] == -1);
+    REQUIRE(reduced.class_index_by_component[0] == 1);
+    REQUIRE(reduced.class_index_by_component[1] == 1);
+    REQUIRE(reduced.group_id_by_component[0] == 0);
+    REQUIRE(reduced.group_id_by_component[1] == 0);
+    REQUIRE(reduced.critical_vertex_by_component[0] == 0);
+    REQUIRE(reduced.critical_vertex_by_component[1] == 0);
+    REQUIRE(reduced.attachment_length_by_component[0] == Catch::Approx(1.0));
+    REQUIRE(reduced.attachment_length_by_component[1] == Catch::Approx(0.0));
+}
+
+TEST_CASE("height reduction separates components that lie in different distance classes") {
+    Instance instance(0);
+    instance.add_edge(0, 1, 1.0);
+    instance.add_edge(1, 2, 1.0);
+    instance.add_edge(2, 3, 1.0);
+    instance.add_edge(3, 4, 1.0);
+    instance.add_edge(4, 5, 1.0);
+    instance.add_terminal(5, 0.2);
+    instance.validate();
+
+    const auto rooted_tree = RootedTreeBuilder::build(instance);
+
+    tucvrp::TreeDecomposition decomposition;
+    decomposition.depot = 0;
+    decomposition.components.push_back(tucvrp::Component{
+        .id = 0,
+        .root = 0,
+        .exit = 4,
+        .terminal_count = 0,
+        .is_leaf = false,
+        .is_big = false,
+        .vertices = {0, 1, 2, 3, 4},
+        .block_ids = {},
+    });
+    decomposition.components.push_back(tucvrp::Component{
+        .id = 1,
+        .root = 4,
+        .exit = -1,
+        .terminal_count = 1,
+        .is_leaf = true,
+        .is_big = true,
+        .vertices = {4, 5},
+        .block_ids = {},
+    });
+
+    const auto reduced =
+        DecompositionBuilder::height_reduce_bounded_components(decomposition, rooted_tree, 0.5);
+
+    REQUIRE(reduced.groups.size() == 2);
+    REQUIRE(reduced.original_parent_component == std::vector<int>{-1, 0});
+    REQUIRE(reduced.class_index_by_component[0] != reduced.class_index_by_component[1]);
+    REQUIRE(reduced.group_id_by_component[0] != reduced.group_id_by_component[1]);
+    REQUIRE(reduced.critical_vertex_by_component[0] == 0);
+    REQUIRE(reduced.critical_vertex_by_component[1] == 4);
+    REQUIRE(reduced.attachment_length_by_component[0] == Catch::Approx(0.0));
+    REQUIRE(reduced.attachment_length_by_component[1] == Catch::Approx(0.0));
+}
+
 TEST_CASE("bounded decomposition satisfies basic component and block invariants") {
     Instance instance(0);
     instance.add_edge(0, 1, 1.0);

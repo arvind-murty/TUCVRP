@@ -5,7 +5,7 @@ PKG_CONFIG ?= pkg-config
 CATCH2_CFLAGS := $(shell $(PKG_CONFIG) --cflags catch2)
 CATCH2_LIBS := $(shell $(PKG_CONFIG) --libs catch2-with-main)
 
-APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition/common.cpp src/decomposition/components.cpp src/decomposition/blocks.cpp src/decomposition/clusters.cpp src/decomposition/cells.cpp src/algorithms/one_point_five_approx.cpp
+APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition/common.cpp src/decomposition/components.cpp src/decomposition/height_reduction.cpp src/decomposition/blocks.cpp src/decomposition/clusters.cpp src/decomposition/cells.cpp src/algorithms/one_point_five_approx.cpp
 APP_OBJS := $(patsubst src/%.cpp,build/src/%.o,$(APP_SRCS))
 APP_BIN := bin/tucvrp
 

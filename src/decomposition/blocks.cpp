@@ -7,8 +7,6 @@ namespace tucvrp {
 
 namespace {
 
-using namespace decomposition_detail;
-
 std::vector<bool> component_membership(const RootedTreeData& rooted_tree, const Component& component) {
     std::vector<bool> in_component(rooted_tree.parent.size(), false);
     for (const int v : component.vertices) {
@@ -121,7 +119,7 @@ void decompose_component_into_blocks(TreeDecomposition& decomposition,
                                      double epsilon,
                                      double gamma) {
     const Component& component = decomposition.components[component_id];
-    const double gamma0 = big_terminal_threshold(epsilon, gamma);
+    const double gamma0 = decomposition_detail::big_terminal_threshold(epsilon, gamma);
     // Precompute the three ingredients from Section 4.1:
     // 1. which vertices belong to the component,
     // 2. which vertices belong to the subtree T_U spanning U,
@@ -174,7 +172,7 @@ void decompose_component_into_blocks(TreeDecomposition& decomposition,
 
             // The collected vertices form a maximally connected subgraph in which each key vertex
             // appears only as a boundary vertex of degree 1, exactly as required by Section 4.1.
-            append_block(
+            decomposition_detail::append_block(
                 decomposition,
                 component_id,
                 v,

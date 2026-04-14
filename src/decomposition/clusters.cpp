@@ -8,8 +8,6 @@ namespace tucvrp {
 
 namespace {
 
-using namespace decomposition_detail;
-
 std::vector<bool> block_membership(const RootedTreeData& rooted_tree, const Block& block) {
     std::vector<bool> in_block(rooted_tree.parent.size(), false);
     for (const int v : block.vertices) {
@@ -272,7 +270,7 @@ void create_leaf_clusters(TreeDecomposition& decomposition,
             }
         }
 
-        append_cluster(
+        decomposition_detail::append_cluster(
             decomposition,
             block.id,
             root,
@@ -302,7 +300,8 @@ void ensure_block_exit_cluster(TreeDecomposition& decomposition, const Block& bl
 
     // Algorithm 3 explicitly adds a trivial leaf cluster for the block exit when no other
     // leaf cluster already contains it.
-    append_cluster(decomposition, block.id, block.exit, block.exit, 0.0, {block.exit});
+    decomposition_detail::append_cluster(
+        decomposition, block.id, block.exit, block.exit, 0.0, {block.exit});
 }
 
 void create_internal_clusters(TreeDecomposition& decomposition,
@@ -324,7 +323,7 @@ void create_internal_clusters(TreeDecomposition& decomposition,
         }
     }
 
-    const std::vector<int> depth = compute_depths(rooted_tree);
+    const std::vector<int> depth = decomposition_detail::compute_depths(rooted_tree);
     // Process key vertices top-down so each path segment is split before any deeper segment nested below it.
     std::sort(non_root_keys.begin(), non_root_keys.end(), [&depth](int a, int b) { return depth[a] < depth[b]; });
 
@@ -339,7 +338,7 @@ void create_internal_clusters(TreeDecomposition& decomposition,
         // is still at least Gamma_0.
         while (cluster_subgraph_demand(subtree_demand, v1_child, x) >= gamma0) {
             const int chosen = deepest_big_cluster_root_on_path(rooted_tree, subtree_demand, v1_child, x, gamma0);
-            append_cluster(
+            decomposition_detail::append_cluster(
                 decomposition,
                 block.id,
                 chosen,
@@ -354,7 +353,7 @@ void create_internal_clusters(TreeDecomposition& decomposition,
         std::vector<int> vertices{v1};
         const std::vector<int> remainder = collect_internal_cluster_vertices(rooted_tree, in_block, v1_child, x);
         vertices.insert(vertices.end(), remainder.begin(), remainder.end());
-        append_cluster(
+        decomposition_detail::append_cluster(
             decomposition,
             block.id,
             v1,
@@ -381,7 +380,8 @@ void decompose_block_into_clusters(TreeDecomposition& decomposition,
 
     // If no finer split is needed, the whole block itself is a single cluster.
     if (leaf_cluster_roots.empty() && key_vertices.size() == 1 && key_vertices[0] == block.root) {
-        append_cluster(decomposition, block.id, block.root, block.exit, block.demand, block.vertices);
+        decomposition_detail::append_cluster(
+            decomposition, block.id, block.root, block.exit, block.demand, block.vertices);
         return;
     }
 
@@ -398,7 +398,8 @@ void decompose_block_into_clusters(TreeDecomposition& decomposition,
 
     // If Algorithms 3 and 4 do not create any finer split, the whole block itself is one cluster.
     if (decomposition.blocks[block_id].cluster_ids.empty()) {
-        append_cluster(decomposition, block_id, block.root, block.exit, block.demand, block.vertices);
+        decomposition_detail::append_cluster(
+            decomposition, block_id, block.root, block.exit, block.demand, block.vertices);
     }
 }
 

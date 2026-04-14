@@ -107,7 +107,9 @@ SolveResult OnePointFiveApproxSolver::solve_bounded_distance(const Instance& ins
     const RootedTreeData rooted_tree = RootedTreeBuilder::build(instance);
     const TreeDecomposition decomposition =
         DecompositionBuilder::decompose_bounded_instance(rooted_tree, params.epsilon);
-    (void)decomposition;
+    const HeightReducedComponentTree height_reduced =
+        DecompositionBuilder::height_reduce_bounded_components(decomposition, rooted_tree, params.epsilon);
+    (void)height_reduced;
     // TODO(phase 4): decompose each component further into blocks, clusters, and cells.
     // TODO(phase 4): local-solution machinery entry point.
     // TODO(phase 5): final DP and solution assembly entry point.

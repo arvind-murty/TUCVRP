@@ -50,6 +50,27 @@ struct Component {
     std::vector<int> block_ids;
 };
 
+// One maximally connected set of components inside a single distance class C_i from Section 4.
+struct HeightReducedComponentGroup {
+    int id = -1;
+    int class_index = -1;
+    int critical_vertex = -1;
+    std::vector<int> component_ids;
+};
+
+// Metadata for the Section 4 height reduction on the tree of components.
+struct HeightReducedComponentTree {
+    double d_min = 0.0;
+    double d_tilde = 0.0;
+    int h_epsilon = 0;
+    std::vector<int> original_parent_component;
+    std::vector<int> class_index_by_component;
+    std::vector<int> group_id_by_component;
+    std::vector<int> critical_vertex_by_component;
+    std::vector<double> attachment_length_by_component;
+    std::vector<HeightReducedComponentGroup> groups;
+};
+
 // Full hierarchy of derived regions built over one rooted tree.
 struct TreeDecomposition {
     int depot = -1;
@@ -65,6 +86,10 @@ class DecompositionBuilder {
     static TreeDecomposition make_trivial(const RootedTreeData& rooted_tree);
     // Build the component decomposition from Algorithm 5 using Gamma = 12 / epsilon and k = 1.
     static TreeDecomposition decompose_bounded_instance(const RootedTreeData& rooted_tree, double epsilon);
+    // Apply the Section 4 height reduction to the current tree of components.
+    static HeightReducedComponentTree height_reduce_bounded_components(const TreeDecomposition& decomposition,
+                                                                      const RootedTreeData& rooted_tree,
+                                                                      double epsilon);
     // Split the current components into blocks using Section 4.1.
     static void decompose_components_into_blocks(TreeDecomposition& decomposition,
                                                  const RootedTreeData& rooted_tree,

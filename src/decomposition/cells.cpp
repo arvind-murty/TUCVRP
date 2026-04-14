@@ -11,8 +11,6 @@ namespace tucvrp {
 
 namespace {
 
-using namespace decomposition_detail;
-
 std::vector<bool> cluster_membership(const RootedTreeData& rooted_tree, const Cluster& cluster) {
     std::vector<bool> in_cluster(rooted_tree.parent.size(), false);
     for (const int v : cluster.vertices) {
@@ -190,7 +188,8 @@ double cell_demand(const RootedTreeData& rooted_tree,
 void decompose_ending_cluster_into_cell(TreeDecomposition& decomposition,
                                         const Cluster& cluster) {
     // Section 4.3: an ending cluster is already a single cell.
-    append_cell(decomposition, cluster.id, cluster.root, -1, cluster.demand, cluster.vertices);
+    decomposition_detail::append_cell(
+        decomposition, cluster.id, cluster.root, -1, cluster.demand, cluster.vertices);
 }
 
 }  // namespace
@@ -229,7 +228,7 @@ void DecompositionBuilder::decompose_clusters_into_cells(TreeDecomposition& deco
             }
 
             const auto [root, exit] = cell_root_and_exit(in_component, spine);
-            append_cell(
+            decomposition_detail::append_cell(
                 decomposition,
                 cluster.id,
                 root,

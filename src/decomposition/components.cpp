@@ -8,8 +8,6 @@ namespace tucvrp {
 
 namespace {
 
-using namespace decomposition_detail;
-
 // In one postorder traversal, identify:
 // 1. leaf-component roots,
 // 2. the key vertices used by the internal-component decomposition.
@@ -188,7 +186,7 @@ TreeDecomposition DecompositionBuilder::decompose_bounded_instance(const RootedT
     decomposition.depot = rooted_tree.depot;
 
     const double gamma = 12.0 / epsilon;
-    const std::vector<int> depth = compute_depths(rooted_tree);
+    const std::vector<int> depth = decomposition_detail::compute_depths(rooted_tree);
 
     // Steps 1 and 2: a single postorder pass identifies leaf-component roots and key vertices.
     std::vector<int> leaf_roots;
@@ -196,19 +194,19 @@ TreeDecomposition DecompositionBuilder::decompose_bounded_instance(const RootedT
     analyze_backbone(rooted_tree, gamma, leaf_roots, key_vertices);
     for (const int v : leaf_roots) {
         // Each leaf-component root contributes one full big subtree component.
-        append_component(
+        decomposition_detail::append_component(
             decomposition,
             v,
             -1,
             rooted_tree.subtree_terminal_counts[v],
             true,
             true,
-            collect_subtree_vertices(rooted_tree, v));
+            decomposition_detail::collect_subtree_vertices(rooted_tree, v));
     }
 
     // If no leaf component exists, the whole bounded instance stays as one component.
     if (leaf_roots.empty()) {
-        append_component(
+        decomposition_detail::append_component(
             decomposition,
             rooted_tree.depot,
             -1,
@@ -254,7 +252,7 @@ TreeDecomposition DecompositionBuilder::decompose_bounded_instance(const RootedT
                 }
 
                 const int terminal_count = component_terminal_count(rooted_tree, chosen, x);
-                append_component(
+                decomposition_detail::append_component(
                     decomposition,
                     chosen,
                     x,
@@ -270,7 +268,7 @@ TreeDecomposition DecompositionBuilder::decompose_bounded_instance(const RootedT
             // final small internal component between this pair of consecutive key vertices.
             if (v1 != x) {
                 const int terminal_count = component_terminal_count(rooted_tree, v1, x);
-                append_component(
+                decomposition_detail::append_component(
                     decomposition,
                     v1,
                     x,
