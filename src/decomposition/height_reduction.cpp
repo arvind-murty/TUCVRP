@@ -215,4 +215,45 @@ HeightReducedComponentTree DecompositionBuilder::height_reduce_bounded_component
     return reduced;
 }
 
+SolveResult DecompositionBuilder::lift_solution_from_height_reduced_tree(
+    const SolveResult& reduced_solution,
+    const Instance& bounded_instance) {
+    bounded_instance.validate();
+
+    SolveResult lifted;
+    for (const Tour& reduced_tour : reduced_solution.tours) {
+        Tour lifted_tour;
+        lifted_tour.terminals = reduced_tour.terminals;
+
+        for (const int terminal : lifted_tour.terminals) {
+            if (!bounded_instance.is_terminal(terminal)) {
+                throw std::invalid_argument(
+                    "lift_solution_from_height_reduced_tree received a non-terminal vertex");
+            }
+            lifted_tour.demand += bounded_instance.demand_of(terminal);
+        }
+
+        if (lifted_tour.demand > 1.0 + 1e-9) {
+            throw std::invalid_argument(
+                "lift_solution_from_height_reduced_tree received an over-capacity tour");
+        }
+
+        const double original_min_cost = bounded_instance.tour_cost_for_terminals(lifted_tour.terminals);
+        // Under the paper's construction, every height-reduced edge expands to an equal-length path
+        // in the original bounded tree. Since the current Tour abstraction stores only the served
+        // terminals and the route cost, we preserve the reduced-tree route cost and sanity-check that
+        // a tour of no greater cost exists in the original tree.
+        if (original_min_cost > reduced_tour.cost + 1e-9) {
+            throw std::logic_error(
+                "height-reduced tour cannot be realized in the original bounded tree at the same cost");
+        }
+
+        lifted_tour.cost = reduced_tour.cost;
+        lifted.tours.push_back(std::move(lifted_tour));
+        lifted.cost += reduced_tour.cost;
+    }
+
+    return lifted;
+}
+
 }  // namespace tucvrp

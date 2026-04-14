@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <stdexcept>
 #include <sstream>
 
 using tucvrp::DecompositionBuilder;
@@ -215,6 +216,75 @@ TEST_CASE("height reduction separates components that lie in different distance 
     REQUIRE(reduced.critical_vertex_by_component[1] == 4);
     REQUIRE(reduced.attachment_length_by_component[0] == Catch::Approx(0.0));
     REQUIRE(reduced.attachment_length_by_component[1] == Catch::Approx(0.0));
+}
+
+TEST_CASE("lifting a height-reduced solution preserves terminal partition and tour costs") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 1
+1 3 1
+2
+2 0.4
+3 0.5
+)");
+
+    const auto instance = Instance::parse(input);
+    const tucvrp::SolveResult reduced_solution{
+        .cost = 14.0,
+        .tours = {
+            tucvrp::Tour{.terminals = {2, 3}, .demand = 0.0, .cost = 14.0},
+        },
+    };
+
+    const auto lifted =
+        DecompositionBuilder::lift_solution_from_height_reduced_tree(reduced_solution, instance);
+
+    REQUIRE(lifted.cost == Catch::Approx(14.0));
+    REQUIRE(lifted.tours.size() == 1);
+    REQUIRE(lifted.tours[0].terminals == std::vector<int>{2, 3});
+    REQUIRE(lifted.tours[0].demand == Catch::Approx(0.9));
+    REQUIRE(lifted.tours[0].cost == Catch::Approx(14.0));
+}
+
+TEST_CASE("lifting a height-reduced solution rejects invalid tours") {
+    std::istringstream input(R"(
+4 0
+0 1 1
+1 2 1
+1 3 1
+2
+2 0.4
+3 0.5
+)");
+
+    const auto instance = Instance::parse(input);
+
+    SECTION("non-terminal vertex") {
+        const tucvrp::SolveResult reduced_solution{
+            .cost = 2.0,
+            .tours = {
+                tucvrp::Tour{.terminals = {1}, .demand = 0.0, .cost = 2.0},
+            },
+        };
+
+        REQUIRE_THROWS_AS(
+            DecompositionBuilder::lift_solution_from_height_reduced_tree(reduced_solution, instance),
+            std::invalid_argument);
+    }
+
+    SECTION("over-capacity terminal set") {
+        const tucvrp::SolveResult reduced_solution{
+            .cost = 12.0,
+            .tours = {
+                tucvrp::Tour{.terminals = {2, 2, 3}, .demand = 0.0, .cost = 12.0},
+            },
+        };
+
+        REQUIRE_THROWS_AS(
+            DecompositionBuilder::lift_solution_from_height_reduced_tree(reduced_solution, instance),
+            std::invalid_argument);
+    }
 }
 
 TEST_CASE("bounded decomposition satisfies basic component and block invariants") {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tucvrp/solution.hpp"
 #include "tucvrp/rooted_tree.hpp"
 
 #include <vector>
@@ -90,6 +91,9 @@ class DecompositionBuilder {
     static HeightReducedComponentTree height_reduce_bounded_components(const TreeDecomposition& decomposition,
                                                                       const RootedTreeData& rooted_tree,
                                                                       double epsilon);
+    // Convert a solution on the height-reduced tree back to a feasible solution on the original bounded tree.
+    static SolveResult lift_solution_from_height_reduced_tree(const SolveResult& reduced_solution,
+                                                              const Instance& bounded_instance);
     // Split the current components into blocks using Section 4.1.
     static void decompose_components_into_blocks(TreeDecomposition& decomposition,
                                                  const RootedTreeData& rooted_tree,
