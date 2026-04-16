@@ -8,7 +8,6 @@
 #include <queue>
 #include <set>
 #include <sstream>
-#include <sstream>
 #include <stdexcept>
 
 namespace tucvrp {
@@ -296,6 +295,70 @@ double Instance::tour_cost_for_terminals(const std::vector<int>& terminal_vertic
         }
     }
     return 2.0 * cost;
+}
+
+// Build a deterministic Euler-style walk over the minimal subtree spanning the depot and terminals.
+std::vector<int> Instance::tour_walk_for_terminals(const std::vector<int>& terminal_vertices) const {
+    validate();
+    if (terminal_vertices.empty()) {
+        return {depot_};
+    }
+
+    const auto parent = parent_array();
+    std::vector<bool> used_edge_to_parent(adjacency_.size(), false);
+    for (const int terminal : terminal_vertices) {
+        if (!is_terminal(terminal)) {
+            throw std::invalid_argument("tour walk contains a non-terminal");
+        }
+        int current = terminal;
+        while (current != depot_) {
+            const int p = parent[current];
+            if (p < 0) {
+                throw std::logic_error("failed to recover depot path");
+            }
+            used_edge_to_parent[current] = true;
+            current = p;
+        }
+    }
+
+    std::vector<std::vector<int>> children(adjacency_.size());
+    for (int v = 0; v < static_cast<int>(adjacency_.size()); ++v) {
+        if (parent[v] >= 0 && used_edge_to_parent[v]) {
+            children[parent[v]].push_back(v);
+        }
+    }
+    for (auto& child_list : children) {
+        std::sort(child_list.begin(), child_list.end());
+    }
+
+    struct Frame {
+        int vertex;
+        std::size_t next_child = 0;
+    };
+
+    std::vector<int> walk;
+    walk.push_back(depot_);
+    std::vector<Frame> stack;
+    stack.push_back(Frame{.vertex = depot_});
+    while (!stack.empty()) {
+        Frame& frame = stack.back();
+        if (frame.next_child < children[frame.vertex].size()) {
+            const int child = children[frame.vertex][frame.next_child++];
+            walk.push_back(child);
+            stack.push_back(Frame{.vertex = child});
+            continue;
+        }
+
+        const int finished_vertex = frame.vertex;
+        stack.pop_back();
+        if (!stack.empty()) {
+            walk.push_back(stack.back().vertex);
+        } else if (finished_vertex != depot_) {
+            throw std::logic_error("tour walk did not end at the depot");
+        }
+    }
+
+    return walk;
 }
 
 // Parse the project's simple text instance format from an input stream.

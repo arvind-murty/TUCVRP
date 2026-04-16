@@ -248,6 +248,7 @@ SolveResult DecompositionBuilder::lift_solution_from_height_reduced_tree(
                 "height-reduced tour cannot be realized in the original bounded tree at the same cost");
         }
 
+        lifted_tour.walk = bounded_instance.tour_walk_for_terminals(lifted_tour.terminals);
         lifted_tour.cost = reduced_tour.cost;
         lifted.tours.push_back(std::move(lifted_tour));
         lifted.cost += reduced_tour.cost;

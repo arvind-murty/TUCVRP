@@ -243,6 +243,7 @@ TEST_CASE("lifting a height-reduced solution preserves terminal partition and to
     REQUIRE(lifted.cost == Catch::Approx(14.0));
     REQUIRE(lifted.tours.size() == 1);
     REQUIRE(lifted.tours[0].terminals == std::vector<int>{2, 3});
+    REQUIRE(lifted.tours[0].walk == std::vector<int>({0, 1, 2, 1, 3, 1, 0}));
     REQUIRE(lifted.tours[0].demand == Catch::Approx(0.9));
     REQUIRE(lifted.tours[0].cost == Catch::Approx(14.0));
 }

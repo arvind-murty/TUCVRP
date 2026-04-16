@@ -37,6 +37,7 @@ TEST_CASE("instance parser validates a simple tree") {
     REQUIRE(subtree_terminal_counts[3] == 1);
     REQUIRE(instance.tour_cost_for_terminals({2}) == Catch::Approx(6.0));
     REQUIRE(instance.tour_cost_for_terminals({2, 3}) == Catch::Approx(12.0));
+    REQUIRE(instance.tour_walk_for_terminals({2, 3}) == std::vector<int>({0, 1, 2, 1, 3, 1, 0}));
 }
 
 TEST_CASE("instance copy constructor preserves tree and terminal state") {
@@ -107,4 +108,9 @@ TEST_CASE("exact solver partitions terminals into feasible tours") {
 
     REQUIRE(result.tours.size() == 2);
     REQUIRE(result.cost == Catch::Approx(16.0));
+    for (const auto& tour : result.tours) {
+        REQUIRE_FALSE(tour.walk.empty());
+        REQUIRE(tour.walk.front() == instance.depot());
+        REQUIRE(tour.walk.back() == instance.depot());
+    }
 }

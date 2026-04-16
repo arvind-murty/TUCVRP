@@ -74,6 +74,7 @@ SolveResult ExactSolver::solve(const Instance& instance) {
                 tour.demand += terminals[i].demand;
             }
         }
+        tour.walk = instance.tour_walk_for_terminals(tour.terminals);
         result.tours.push_back(tour);
         mask ^= sub;
     }

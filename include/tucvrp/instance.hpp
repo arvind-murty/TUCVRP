@@ -64,6 +64,8 @@ class Instance {
     [[nodiscard]] std::vector<int> subtree_terminal_counts() const;
     // Return the minimum round-trip tour cost to visit the given terminals from the depot.
     [[nodiscard]] double tour_cost_for_terminals(const std::vector<int>& terminal_vertices) const;
+    // Return one concrete depot-to-depot walk realizing the minimum subtree tour for the given terminals.
+    [[nodiscard]] std::vector<int> tour_walk_for_terminals(const std::vector<int>& terminal_vertices) const;
 
     // Parse an instance from the project's simple text format.
     static Instance parse(std::istream& input);

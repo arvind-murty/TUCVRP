@@ -7,6 +7,8 @@ namespace tucvrp {
 // One vehicle tour together with the terminals it serves.
 struct Tour {
     std::vector<int> terminals;
+    // A concrete depot-to-depot walk in the original tree realizing this tour.
+    std::vector<int> walk;
     double demand = 0.0;
     double cost = 0.0;
 };
