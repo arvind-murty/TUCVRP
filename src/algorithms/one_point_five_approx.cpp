@@ -53,7 +53,7 @@ int floor_div(int a, int b) {
     return q;
 }
 
-// Validate epsilon and snap it to the reciprocal grid used by the current scaffold.
+// Validate epsilon and snap it to the reciprocal grid used by the current implementation.
 OnePointFiveApproxParams validate_params(const OnePointFiveApproxParams& params) {
     if (params.epsilon <= 0.0 || params.epsilon >= 1.0) {
         throw std::invalid_argument("OnePointFiveApproxSolver requires epsilon in (0, 1)");

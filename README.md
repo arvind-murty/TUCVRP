@@ -1,101 +1,233 @@
 # TUCVRP
 
-C++20 implementation work for tree UCVRP, centered on the paper
-["A Tight (1.5 + epsilon)-Approximation for Unsplittable Capacitated Vehicle Routing on Trees"](https://arxiv.org/pdf/2202.05691),
-with the bounded-height reduction infrastructure from
-["A PTAS for Unsplittable Capacitated Vehicle Routing on Trees"](https://arxiv.org/pdf/2111.03735).
+This repository contains a C++20 implementation of routing algorithms for the
+tree version of the Unsplittable Capacitated Vehicle Routing Problem (UCVRP).
 
-The codebase currently contains:
+The current codebase includes:
 
-- a general tree instance model and parser
-- an exact exponential solver for small instances
-- the paper solver pipeline:
-  - preprocessing to a binary tree with leaf terminals
-  - bounded-distance outer reduction
-  - component / block / cluster / cell decomposition
-  - height reduction on the component tree
-  - local-configuration DP
-  - subtree-configuration DP
-  - tour reconstruction back to the original instance
+- an exact solver for small instances
+- an implementation of the modern `(1.5 + ε)` approximation framework
+- a simpler Labbé-style baseline heuristic adapted to the same model
+- preprocessing, decomposition, height reduction, and dynamic-programming infrastructure
+- scripts for comparing solver outputs on hand-built and random instances
 
-## Build
+The repository is best thought of as an implementation and experimentation
+workspace for approximation algorithms on trees. It is in good shape for
+inspection, testing, and solver comparison, but the `(1.5 + ε)` solver is still
+slow on some modest instances and should not be treated as a production-tuned tool.
 
-This project uses `make` and a system-installed Catch2.
+## Problem Model
 
-```bash
-make
-make test
-```
+The repository works with the following normalized model:
+
+- the input is a weighted tree rooted at a depot
+- each terminal has demand in `(0, 1]`
+- each vehicle has capacity `1`
+- terminal demands are unsplittable
+- the objective is to minimize total route length
+
+For a set of terminals, the cheapest one-tour route is the round trip over the
+minimal subtree containing those terminals and the depot. The codebase uses that
+fact throughout both the exact and approximate solvers.
+
+## Implemented Solvers
+
+### 1. Exact Solver
+
+`ExactSolver` solves small instances exactly by subset dynamic programming.
+
+- intended for instances with at most `20` terminals
+- useful as a correctness oracle
+- used heavily by tests and comparison scripts
+
+Relevant files:
+
+- `include/tucvrp/exact_solver.hpp`
+- `src/exact_solver.cpp`
+
+### 2. Labbé Baseline
+
+`LabbeApproxSolver` is a deterministic adaptation of the older tree heuristic to
+the current one-vehicle-type model used in this repository.
+
+- works directly on the original rooted tree
+- repeatedly eliminates leaves bottom-up
+- produces explicit tours and walks on the original instance
+- currently serves as the baseline for comparison against the `(1.5 + ε)` solver
+
+Relevant files:
+
+- `include/tucvrp/algorithms/labbe_approx.hpp`
+- `src/algorithms/labbe_approx.cpp`
+- `tests/labbe_approx_test.cpp`
+
+### 3. `(1.5 + ε)` Paper Solver
+
+`OnePointFiveApproxSolver` implements the main pipeline behind the
+`(1.5 + ε)` approximation framework used in this project.
+
+The implementation currently includes:
+
+- preprocessing to a binary tree with leaf terminals
+- bounded-distance outer reduction
+- component / block / cluster / cell decomposition
+- height reduction on the component tree
+- local-configuration DP
+- subtree-configuration DP
+- reconstruction of explicit depot-to-depot tours on the original input tree
+
+Relevant files:
+
+- `include/tucvrp/algorithms/one_point_five_approx.hpp`
+- `src/algorithms/one_point_five_approx.cpp`
+- `src/decomposition/`
+- `tests/one_point_five_approx_test.cpp`
+
+## Repository Layout
+
+### Public headers
+
+- `include/tucvrp/instance.hpp`
+  - tree instance model
+  - parser
+  - rooted-tree utilities
+  - route cost and route walk helpers
+- `include/tucvrp/solution.hpp`
+  - `Tour` and `SolveResult`
+- `include/tucvrp/preprocessing.hpp`
+  - lower bound and normalization
+- `include/tucvrp/rooted_tree.hpp`
+  - cached rooted-tree annotations
+- `include/tucvrp/decomposition.hpp`
+  - decomposition and height-reduction data structures
+- `include/tucvrp/exact_solver.hpp`
+- `include/tucvrp/algorithms/labbe_approx.hpp`
+- `include/tucvrp/algorithms/one_point_five_approx.hpp`
+
+### Source tree
+
+- `src/instance.cpp`
+  - parsing, validation, rooted tree utilities, tour support computation
+- `src/preprocessing.cpp`
+  - binary/leaf normalization and edge-load lower bound
+- `src/rooted_tree.cpp`
+  - rooted-tree annotations
+- `src/exact_solver.cpp`
+  - exact subset DP
+- `src/algorithms/labbe_approx.cpp`
+  - baseline heuristic
+- `src/algorithms/one_point_five_approx.cpp`
+  - main approximation solver and DP logic
+- `src/decomposition/`
+  - decomposition implementation split by layer:
+    - `components.cpp`
+    - `blocks.cpp`
+    - `clusters.cpp`
+    - `cells.cpp`
+    - `height_reduction.cpp`
+
+### Tests
+
+- `tests/instance_test.cpp`
+- `tests/preprocessing_test.cpp`
+- `tests/rooted_tree_test.cpp`
+- `tests/decomposition_test.cpp`
+- `tests/rng_test.cpp`
+- `tests/labbe_approx_test.cpp`
+- `tests/one_point_five_approx_test.cpp`
+- `tests/compare_scripts_test.py`
+
+### Scripts
+
+- `scripts/compare_examples.py`
+  - compare exact / Labbé / paper solver on checked-in example instances
+- `scripts/compare_random.py`
+  - generate random exact-solvable instances and compare the three solvers
+- `scripts/compare_common.py`
+  - shared helper code for script parsing and instance generation
+
+### Data
+
+- `data/examples/`
+  - small hand-built example instances used for debugging and smoke testing
+
+## Build and Test
+
+### Requirements
+
+- `clang++` with C++20 support
+- `make`
+- `pkg-config`
+- Catch2 installed in a way visible to `pkg-config`
+- Python 3 for the comparison scripts
 
 The `Makefile` discovers Catch2 through `pkg-config`.
 
-## Current Status
+### Build
 
-Implemented:
+```bash
+make
+```
 
-- rooted tree instance model with validation
-- text parser for problem instances
-- exact subset-DP solver for small instances
-- edge-load lower bound
-- project-wide RNG helper
-- preprocessing:
-  - binary-tree normalization
-  - terminal-to-leaf normalization
-  - removal of zero-distance terminals during normalization
-- decomposition hierarchy:
-  - bounded-instance component decomposition
-  - block decomposition
-  - cluster decomposition
-  - cell decomposition
-- height reduction of the component tree
-- Section 9 dynamic-programming phases:
-  - Algorithm 2 local configurations
-  - Algorithm 5 subtree configurations at component roots
-  - Algorithm 6 subtree configurations at critical vertices
-- bottom-up bounded-instance DP driver
-- reconstruction of tours and walks on the original input tree
+This builds the main CLI at:
 
-Tested and instrumented:
+```bash
+bin/tucvrp
+```
 
-- local-configuration count sanity checks against the paper definitions
-- subtree-configuration count sanity checks on simple cases
-- count-only checks for the larger timing-out local-configuration examples documented in
-  [README.local-config-debug.md](/Users/arvindmurty/CS/CS583/TUCVRP/README.local-config-debug.md)
+### Run all tests
 
-Practical caveat:
+```bash
+make test
+```
 
-- the paper solver is implemented end-to-end and returns concrete tours, but it is still slow on some modest random instances, especially for smaller `epsilon`
-- the current bottleneck is the local-configuration computation in Algorithm 2
-- the project is in a good correctness/debugging state, but not yet in a performance-tuned state
+This runs:
 
-## CLI
+- the full Catch2 C++ test suite
+- the Python helper-script test
 
-The CLI currently runs:
+The current suite covers:
 
-- the paper solver with `epsilon = 0.25`
-- the edge-load lower bound
-- the exact solver when the instance has at most `20` terminals
+- instance parsing and validation
+- route-cost and route-walk helpers
+- preprocessing invariants
+- rooted-tree annotations
+- decomposition invariants
+- height reduction
+- exact-solver behavior
+- Labbé baseline behavior
+- local-configuration and subtree-configuration DP behavior
+- bounded solver reconstruction
+- comparison-script parsing/generation helpers
 
-Example:
+## Command-Line Usage
+
+Run the CLI on one instance file:
 
 ```bash
 ./bin/tucvrp data/examples/path_small.txt
 ```
 
-The output includes:
+The CLI currently prints:
 
 - the pretty-printed rooted tree
 - terminal count
 - total demand
 - edge-load lower bound
-- exact optimum or a skip message
-- paper solver cost
-- exact tours and explicit walks
-- paper-solver tours and explicit walks
+- exact optimum, when `terminal_count <= 20`
+- Labbé baseline cost and tours
+- paper solver cost and tours
 
-## Instance Format
+Each printed tour includes:
 
-The CLI reads a simple text format:
+- served terminals
+- total demand
+- route cost
+- explicit depot-to-depot walk
+
+## Instance File Format
+
+The input format is:
 
 ```text
 n depot
@@ -108,6 +240,14 @@ terminal_0 demand_0
 ...
 terminal_(m-1) demand_(m-1)
 ```
+
+where:
+
+- `n` is the number of vertices
+- `depot` is the depot vertex id
+- the next `n-1` lines are undirected weighted tree edges
+- `m` is the number of terminals
+- each terminal line gives `vertex demand`
 
 Example:
 
@@ -123,101 +263,143 @@ Example:
 
 ## Example Instances
 
-Small hand-checkable examples are in `data/examples/`:
+The repository includes small hand-checkable examples:
 
-- `path_small.txt`
-- `binary_balanced.txt`
-- `star_heavy_leaf.txt`
-- `multi_tour_mixed.txt`
-- `high_degree_for_binary.txt`
-- `lower_bound_gap.txt`
+- `data/examples/path_small.txt`
+- `data/examples/binary_balanced.txt`
+- `data/examples/star_heavy_leaf.txt`
+- `data/examples/multi_tour_mixed.txt`
+- `data/examples/high_degree_for_binary.txt`
+- `data/examples/lower_bound_gap.txt`
 
-Example usage:
+These are useful for:
 
-```bash
-./bin/tucvrp data/examples/multi_tour_mixed.txt
-```
+- inspecting solver output manually
+- smoke-testing the CLI
+- comparing the exact, Labbé, and paper solvers
 
-## Code Structure
+## Comparison Scripts
 
-Main public headers:
-
-- [instance.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/instance.hpp)
-  tree model, parsing, distance utilities, tour-cost/walk helpers
-- [solution.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/solution.hpp)
-  public `Tour` / `SolveResult` types
-- [exact_solver.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/exact_solver.hpp)
-  exact exponential solver
-- [preprocessing.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/preprocessing.hpp)
-  normalization and lower-bound utilities
-- [rooted_tree.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/rooted_tree.hpp)
-  rooted-tree annotations derived from an instance
-- [decomposition.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/decomposition.hpp)
-  component/block/cluster/cell and height-reduction data structures
-- [one_point_five_approx.hpp](/Users/arvindmurty/CS/CS583/TUCVRP/include/tucvrp/algorithms/one_point_five_approx.hpp)
-  paper solver API plus exposed DP table builders used by tests
-
-Decomposition implementation is split by paper layer under `src/decomposition/`:
-
-- `components.cpp`
-- `blocks.cpp`
-- `clusters.cpp`
-- `cells.cpp`
-- `height_reduction.cpp`
-
-## Testing
-
-Run the full suite with:
+### Compare on checked-in examples
 
 ```bash
-make test
+python3 scripts/compare_examples.py
 ```
 
-The tests cover:
+This:
 
-- instance parsing and utilities
-- preprocessing invariants
-- rooted-tree construction
-- decomposition invariants
-- height reduction
-- RNG reproducibility
-- exact solver behavior
-- paper solver DP phases and reconstruction
+- builds `bin/tucvrp` automatically if needed
+- runs it on every file in `data/examples/`
+- parses exact / lower-bound / Labbé / paper-solver output
+- prints a compact comparison table
 
-Two useful test/debug files:
+### Compare on random instances
 
-- [tests/one_point_five_approx_test.cpp](/Users/arvindmurty/CS/CS583/TUCVRP/tests/one_point_five_approx_test.cpp)
-  detailed tests for local and subtree configurations, DP phase interaction, and tour reconstruction
-- [README.local-config-debug.md](/Users/arvindmurty/CS/CS583/TUCVRP/README.local-config-debug.md)
-  notes on local-configuration counting, including the reproduced timing-out trees
+```bash
+python3 scripts/compare_random.py --instances 10 --vertices 10 --terminals 5 --timeout 20
+```
 
-## What The Paper Solver Returns
+Useful flags:
 
-`OnePointFiveApproxSolver::solve(...)` returns a `SolveResult` on the original input tree.
+- `--seed`
+- `--instances`
+- `--vertices`
+- `--terminals`
+- `--timeout`
 
-Each `Tour` contains:
+This script is meant for quick solver comparison on small exact-solvable trees.
+It uses the existing CLI, not a separate benchmarking binary.
 
-- `terminals`
-  the original terminal vertices assigned to that tour
-- `demand`
-  the total terminal demand covered by that tour
-- `cost`
-  the route cost
-- `walk`
-  an explicit depot-to-depot walk on the original tree
+Important note:
 
-The paper solver internally works on normalized / bounded / height-reduced structures, but the public result is projected back to the original instance before being returned.
+- the script applies a per-instance timeout when invoking `bin/tucvrp`
+- this is intentional
+- the current `(1.5 + ε)` solver can still become slow on some modest random instances
+- timeout rows are reported explicitly in the output instead of leaving background jobs running
+
+## How To Work With The Codebase
+
+### If you want to understand the basic data model
+
+Start with:
+
+- `include/tucvrp/instance.hpp`
+- `src/instance.cpp`
+- `include/tucvrp/solution.hpp`
+
+### If you want to understand the exact baseline
+
+Read:
+
+- `include/tucvrp/exact_solver.hpp`
+- `src/exact_solver.cpp`
+- `tests/instance_test.cpp`
+
+### If you want to understand the Labbé baseline
+
+Read:
+
+- `include/tucvrp/algorithms/labbe_approx.hpp`
+- `src/algorithms/labbe_approx.cpp`
+- `tests/labbe_approx_test.cpp`
+
+### If you want to understand the paper solver
+
+The cleanest order is:
+
+1. `include/tucvrp/preprocessing.hpp`
+2. `include/tucvrp/rooted_tree.hpp`
+3. `include/tucvrp/decomposition.hpp`
+4. `src/decomposition/`
+5. `include/tucvrp/algorithms/one_point_five_approx.hpp`
+6. `src/algorithms/one_point_five_approx.cpp`
+7. `tests/one_point_five_approx_test.cpp`
+
+### If you want to understand the performance bottleneck
+
+Read:
+
+- `README.local-config-debug.md`
+- `tests/one_point_five_approx_test.cpp`
+
+Those explain and test the local-configuration and subtree-configuration state counts,
+including the larger timing-out examples.
+
+## Current Status
+
+What is implemented:
+
+- exact solver
+- Labbé baseline solver
+- end-to-end `(1.5 + ε)` solver with explicit tour reconstruction
+- decomposition hierarchy and height reduction
+- comparison scripts and solver-side tests
+
+What is still weak:
+
+- the `(1.5 + ε)` solver is not performance-tuned
+- Algorithm 2 local-configuration evaluation is the dominant runtime bottleneck
+- the codebase is strongest as a correctness/debugging platform, not yet as a scalable experiment platform
 
 ## Known Limitations
 
-- The exact solver is intentionally limited to small instances and is skipped by the CLI above `20` terminals.
-- The approximation solver is functionally implemented, but not yet performance-tuned.
-- The current implementation is best treated as an instrumented research implementation, not a production solver.
+- `ExactSolver` is only intended for small instances and is skipped by the CLI above `20` terminals.
+- The paper solver can be slow on modest random instances, especially for smaller values of `ε`.
+- The comparison scripts are lightweight wrappers around the CLI, not a dedicated benchmark framework.
+- The paper draft in `paper/` is still a working draft, not a finalized manuscript.
+
+## Related Documentation
+
+- `README.local-config-debug.md`
+  - notes on local-configuration counting and timing-out examples
+- `paper/implementation_draft.tex`
+  - current draft of the implementation paper
 
 ## Next Steps
 
-Highest-value remaining work:
+The most useful next improvements are:
 
 1. optimize Algorithm 2 local-configuration evaluation
-2. add more end-to-end randomized benchmark tooling
-3. continue proof-alignment review of the DP state semantics and approximation guarantee
+2. extend solver comparison experiments
+3. continue tightening the implementation paper and bibliography
+4. keep auditing the `(1.5 + ε)` DP state semantics against the source papers

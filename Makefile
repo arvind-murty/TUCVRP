@@ -5,11 +5,11 @@ PKG_CONFIG ?= pkg-config
 CATCH2_CFLAGS := $(shell $(PKG_CONFIG) --cflags catch2)
 CATCH2_LIBS := $(shell $(PKG_CONFIG) --libs catch2-with-main)
 
-APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition/common.cpp src/decomposition/components.cpp src/decomposition/height_reduction.cpp src/decomposition/blocks.cpp src/decomposition/clusters.cpp src/decomposition/cells.cpp src/algorithms/one_point_five_approx.cpp
+APP_SRCS := src/main.cpp src/instance.cpp src/preprocessing.cpp src/exact_solver.cpp src/rng.cpp src/rooted_tree.cpp src/decomposition/common.cpp src/decomposition/components.cpp src/decomposition/height_reduction.cpp src/decomposition/blocks.cpp src/decomposition/clusters.cpp src/decomposition/cells.cpp src/algorithms/one_point_five_approx.cpp src/algorithms/labbe_approx.cpp
 APP_OBJS := $(patsubst src/%.cpp,build/src/%.o,$(APP_SRCS))
 APP_BIN := bin/tucvrp
 
-TEST_SRCS := tests/instance_test.cpp tests/preprocessing_test.cpp tests/one_point_five_approx_test.cpp tests/rng_test.cpp tests/rooted_tree_test.cpp tests/decomposition_test.cpp
+TEST_SRCS := tests/instance_test.cpp tests/preprocessing_test.cpp tests/one_point_five_approx_test.cpp tests/labbe_approx_test.cpp tests/rng_test.cpp tests/rooted_tree_test.cpp tests/decomposition_test.cpp
 TEST_OBJS := $(patsubst tests/%.cpp,build/tests/%.o,$(TEST_SRCS)) $(patsubst src/%.cpp,build/src/%.o,$(filter-out src/main.cpp,$(APP_SRCS)))
 TEST_BIN := bin/tests
 
@@ -22,6 +22,7 @@ all: $(APP_BIN)
 
 test: $(TEST_BIN)
 	./$(TEST_BIN)
+	python3 tests/compare_scripts_test.py
 
 run: $(APP_BIN)
 	./$(APP_BIN)

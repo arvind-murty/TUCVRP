@@ -4,3 +4,6 @@ bin/
 *.d
 .DS_Store
 .vscode/
+scripts/__pycache__/
+*.pyc
+paper/
